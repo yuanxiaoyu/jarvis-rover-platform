@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    cmd_vel_topic: /cmd_vel
+    goal_topic: /goal_pose
+    use_keepout: true
+    use_virtual_walls: true
+    nav2_map_yaml: /workspace/data/maps/current.yaml
+    nav2_params_yaml: /workspace/data/nav2/dwb_nav_params.yaml

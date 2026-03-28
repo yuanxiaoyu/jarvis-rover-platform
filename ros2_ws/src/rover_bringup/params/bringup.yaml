@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    robot_name: rover_pi5
+    map_source: ms200_tof_2d
+    reconstructed_3d_view: true
+    use_keepout: true
+    use_virtual_walls: true
+

@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    scan_topic: /scan
+    map_topic: /map
+    map_metadata_topic: /map_metadata
+    session_dir: /workspace/data/maps
+    mesh_strategy: extruded_occupancy
+    save_serialized_slam: true

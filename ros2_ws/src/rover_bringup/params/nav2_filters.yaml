@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    keepout_filter_info_topic: /keepout_filter_info
+    keepout_mask_topic: /keepout_mask
+    virtual_wall_mask_topic: /virtual_wall_mask
+    semantic_zone_topic: /semantic_zones
+

@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    scan_topic: /scan
+    cmd_vel_in: /cmd_vel
+    cmd_vel_out: /cmd_vel_safe
+    keepout_mask_topic: /keepout_mask
+    emergency_stop_topic: /emergency_stop
+    min_clearance_m: 0.28

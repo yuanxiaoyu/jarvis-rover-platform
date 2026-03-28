@@ -1,0 +1,6 @@
+string transcript
+string intent
+---
+bool accepted
+string message
+

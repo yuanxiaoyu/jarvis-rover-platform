@@ -1,0 +1,42 @@
+FROM node:24-bookworm-slim AS web-build
+
+WORKDIR /workspace/apps/web
+COPY apps/web/package.json ./
+COPY apps/web/tsconfig.json ./
+COPY apps/web/tsconfig.app.json ./
+COPY apps/web/tsconfig.node.json ./
+COPY apps/web/vite.config.ts ./
+COPY apps/web/index.html ./
+COPY apps/web/src ./src
+RUN npm install && npm run build
+
+FROM ros:humble-ros-base-jammy AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip \
+    python3-colcon-common-extensions \
+    ros-humble-rosbridge-server \
+    ros-humble-nav2-bringup \
+    ros-humble-slam-toolbox \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+COPY services/api /workspace/services/api
+RUN python3 -m pip install --no-cache-dir -e /workspace/services/api
+
+COPY ros2_ws /workspace/ros2_ws
+RUN bash -lc "source /opt/ros/humble/setup.bash && cd /workspace/ros2_ws && colcon build --symlink-install"
+
+COPY --from=web-build /workspace/apps/web/dist /workspace/services/api/app/static
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8000
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["api"]

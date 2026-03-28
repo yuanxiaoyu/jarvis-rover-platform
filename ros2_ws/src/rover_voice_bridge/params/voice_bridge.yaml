@@ -1,0 +1,10 @@
+/**:
+  ros__parameters:
+    adapter: mock
+    wake_word: 贾维斯
+    enable_wake_word: false
+    enable_asr: false
+    enable_tts: false
+    sherpa:
+      model_dir: /workspace/models/sherpa
+      provider: cpu
