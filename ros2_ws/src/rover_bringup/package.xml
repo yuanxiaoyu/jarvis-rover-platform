@@ -16,10 +16,10 @@
   <exec_depend>rover_safety</exec_depend>
   <exec_depend>rover_ai_bridge</exec_depend>
   <exec_depend>rover_voice_bridge</exec_depend>
+  <exec_depend>rover_vision</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
   <export />
 </package>
-

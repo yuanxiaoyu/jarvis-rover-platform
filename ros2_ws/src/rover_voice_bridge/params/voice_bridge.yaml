@@ -5,6 +5,9 @@
     enable_wake_word: false
     enable_asr: false
     enable_tts: false
+    whole_home_scan_intent: whole_home_garbage_scan
+    whole_home_scan_phrase_hint: 扫描整个房屋，发现有垃圾请拍照告诉我
+    forward_command_api_path: /api/v1/voice/command
     sherpa:
       model_dir: /workspace/models/sherpa
       provider: cpu

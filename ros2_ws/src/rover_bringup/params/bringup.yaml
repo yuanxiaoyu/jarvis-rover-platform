@@ -5,4 +5,4 @@
     reconstructed_3d_view: true
     use_keepout: true
     use_virtual_walls: true
-
+    use_garbage_detection: false
