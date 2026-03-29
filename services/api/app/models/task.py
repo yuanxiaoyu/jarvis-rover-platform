@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +11,8 @@ class TaskType(str, Enum):
     NAVIGATE = "navigate"
     PATROL = "patrol"
     INSPECT = "inspect"
+    WHOLE_HOME_SCAN = "whole_home_scan"
+    GARBAGE_REPORT = "garbage_report"
     RETURN_TO_DOCK = "return_to_dock"
 
 
@@ -27,6 +30,7 @@ class Task(BaseModel):
     status: TaskStatus = TaskStatus.PENDING
     target: Coordinate2D | None = None
     description: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -35,8 +39,8 @@ class TaskCreate(BaseModel):
     type: TaskType
     target: Coordinate2D | None = None
     description: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TaskStatusPatch(BaseModel):
     status: TaskStatus
-

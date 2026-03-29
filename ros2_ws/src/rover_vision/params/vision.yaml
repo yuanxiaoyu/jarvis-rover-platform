@@ -1,0 +1,50 @@
+/**:
+  ros__parameters:
+    enabled: false
+    detector_backend: ultralytics
+    model_path: /workspace/models/yolo/taco_pi_best.pt
+    dataset_profile: taco
+    label_map_csv: /workspace/models/yolo/taco_map_10.csv
+    image_transport: compressed
+    compressed_image_topic: /camera/image/compressed
+    raw_image_topic: /camera/image_raw
+    api_base_url: http://127.0.0.1:8000
+    system_snapshot_path: /api/v1/system/snapshot
+    detection_post_path: /api/v1/garbage/detections
+    whole_home_task_type: whole_home_scan
+    capture_dir: /tmp/rover_captures
+    capture_base_url: ""
+    room_label_fallback: unknown_room
+    min_confidence: 0.35
+    allowed_labels:
+      - can
+      - bottle
+      - plastic bag + wrapper
+      - plastic bag
+      - bag
+      - paper
+      - carton
+      - cup
+      - litter
+      - other
+      - plastic
+      - wrapper
+      - cigarette
+      - food waste
+      - glass
+      - metal
+      - bottle cap
+      - lid
+      - 易拉罐
+      - 饮料瓶
+      - 塑料袋
+    report_cooldown_seconds: 15.0
+    active_task_refresh_seconds: 2.0
+    save_annotated_capture: true
+    save_sidecar_json: true
+    pi_mode: true
+    frame_stride: 6
+    max_image_dim: 640
+    model_input_size: 640
+    mock_detections_enabled: false
+    mock_detection_label: bottle

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from app.models.task import Task, TaskStatus, TaskType
 from app.models.voice import VoiceAck, VoiceCommand, VoiceSessionState
+from app.services.command_orchestrator import infer_command_intent, queue_whole_home_garbage_scan
 from app.state import TASK_STATE, VOICE_STATE
 
 router = APIRouter(prefix="/voice", tags=["voice"])
@@ -20,7 +21,7 @@ def set_voice_session(action: dict[str, str]) -> VoiceSessionState:
 
 @router.post("/command", response_model=VoiceAck)
 def process_voice_command(command: VoiceCommand) -> VoiceAck:
-    normalized_intent = command.intent.lower().strip()
+    normalized_intent = infer_command_intent(command.transcript, command.intent)
     adapter = "mock"
 
     if "sherpa" in command.transcript.lower():
@@ -28,6 +29,16 @@ def process_voice_command(command: VoiceCommand) -> VoiceAck:
         VOICE_STATE.adapter = adapter
 
     VOICE_STATE.transcript = command.transcript
+
+    if normalized_intent == "whole_home_garbage_scan":
+        task = queue_whole_home_garbage_scan(command.transcript, source="voice")
+        return VoiceAck(
+            accepted=True,
+            message="Whole-home garbage scan started. Detections will be reported through OpenClaw.",
+            intent=normalized_intent,
+            adapter=adapter,
+            task_id=task.task_id,
+        )
 
     if normalized_intent in {"navigate", "go_to_point"}:
         now = datetime.now(timezone.utc)

@@ -22,6 +22,7 @@ def create_task(task_req: TaskCreate) -> Task:
         type=task_req.type,
         target=task_req.target,
         description=task_req.description,
+        metadata=task_req.metadata,
         created_at=now,
         updated_at=now,
     )
@@ -37,4 +38,3 @@ def patch_task(task_id: str, patch: TaskStatusPatch) -> Task:
             task.updated_at = datetime.now(timezone.utc)
             return task
     raise HTTPException(status_code=404, detail="task not found")
-

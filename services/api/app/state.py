@@ -1,3 +1,4 @@
+from app.models.garbage import GarbageDetection
 from app.models.map import Coordinate2D, MapModel, Reconstructed3DLayer
 from app.models.mission import MissionMode, MissionState
 from app.models.task import Task
@@ -41,6 +42,7 @@ ZONE_STATE: list[Zone] = [
     ),
 ]
 TASK_STATE: list[Task] = []
+GARBAGE_DETECTION_STATE: list[GarbageDetection] = []
 MISSION_STATE = MissionState(
     mode=MissionMode.AUTONOMY,
     objective="巡航主通道并检查东侧巡检区",

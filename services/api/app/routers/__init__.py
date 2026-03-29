@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.routers.garbage import router as garbage_router
 from app.routers.map import router as map_router
 from app.routers.missions import router as missions_router
 from app.routers.sensors import router as sensors_router
@@ -16,3 +17,4 @@ api_router.include_router(tasks_router)
 api_router.include_router(missions_router)
 api_router.include_router(voice_router)
 api_router.include_router(sensors_router)
+api_router.include_router(garbage_router)

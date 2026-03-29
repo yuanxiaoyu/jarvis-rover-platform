@@ -10,7 +10,12 @@ class VoiceBridgeNode(Node):
         self.declare_parameter("enable_wake_word", False)
         self.declare_parameter("enable_asr", False)
         self.declare_parameter("enable_tts", False)
-        self.get_logger().info("rover_voice_bridge ready with optional sherpa-onnx path.")
+        self.declare_parameter("whole_home_scan_intent", "whole_home_garbage_scan")
+        self.declare_parameter("whole_home_scan_phrase_hint", "扫描整个房屋，发现有垃圾请拍照告诉我")
+        self.declare_parameter("forward_command_api_path", "/api/v1/voice/command")
+        self.get_logger().info(
+            "rover_voice_bridge ready with optional sherpa-onnx path and whole-home garbage scan intent."
+        )
 
 
 def main(args=None) -> None:

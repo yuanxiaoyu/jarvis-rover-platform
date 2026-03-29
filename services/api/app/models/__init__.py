@@ -1,5 +1,6 @@
+from app.models.garbage import GarbageDetection, GarbageDetectionCreate, GarbageReport, GarbageReportStatus
 from app.models.map import Coordinate2D, MapModel, Reconstructed3DLayer
-from app.models.mission import AiCommandRequest, MissionState, NavigateRequest
+from app.models.mission import AiCommandRequest, MissionState, NavigateRequest, WholeHomeGarbageScanRequest
 from app.models.sensor import SensorSnapshot
 from app.models.system import SystemSnapshot
 from app.models.task import Task, TaskCreate, TaskStatusPatch
@@ -10,6 +11,10 @@ from app.models.zone import Zone
 __all__ = [
     "AiCommandRequest",
     "Coordinate2D",
+    "GarbageDetection",
+    "GarbageDetectionCreate",
+    "GarbageReport",
+    "GarbageReportStatus",
     "MapModel",
     "MissionState",
     "NavigateRequest",
@@ -23,5 +28,6 @@ __all__ = [
     "VoiceAck",
     "VoiceCommand",
     "VoiceSessionState",
+    "WholeHomeGarbageScanRequest",
     "Zone",
 ]

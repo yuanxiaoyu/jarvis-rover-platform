@@ -24,3 +24,10 @@ class NavigateRequest(BaseModel):
 
 class AiCommandRequest(BaseModel):
     prompt: str = Field(min_length=1)
+
+
+class WholeHomeGarbageScanRequest(BaseModel):
+    transcript: str = "贾维斯，请帮我扫描整个房屋，发现有垃圾请拍照告诉我。"
+    report_channel: str = "openclaw"
+    report_target: str = "feishu"
+    require_photo: bool = True

@@ -16,6 +16,7 @@ class VoiceAck(BaseModel):
     message: str
     intent: str
     adapter: str = "mock"
+    task_id: str | None = None
 
 
 class VoiceSessionState(BaseModel):
