@@ -120,6 +120,28 @@ UI 采用单屏操作台设计，而不是多页跳转式后台。
 - 汇总异常结果
 - 按需语音播报结果
 
+### 整屋垃圾扫描与 OpenClaw 上报
+
+“贾维斯，请帮我扫描整个房屋，发现有垃圾请拍照告诉我”会在 AI 桥接层生成一个 `whole_home_scan` 任务。ROS2 感知组件会执行全屋扫描，发现垃圾后产生 `GarbageDetection` 载荷（包括 `task_id`、房间标签、描述、图片 URL），然后用 `POST /api/v1/garbage/detections` 把报告送到 API。
+
+API 负责拼接 `ROVER_OPENCLAW_WEBHOOK_URL` 的 webhook 请求体，OpenClaw 接到后在飞书群发布一个卡片，卡片里包含照片、房间信息、任务状态以及清理提醒。整个链路的任务状态会覆盖前端任务列表和系统快照，保证操作员能看到指令的执行进度。
+
+在当前实现里，ROS2 侧由新增的 `rover_vision` 包承担视觉检测职责：
+
+- 订阅 `/camera/image/compressed` 或 `/camera/image_raw`
+- 使用 `ultralytics` YOLO 模型做垃圾类标签过滤
+- 将抓拍图保存到本地目录，并同步保存 sidecar JSON 元数据
+- 通过 `/api/v1/system/snapshot` 轮询当前活跃的 `whole_home_scan` 任务
+- 命中目标后调用 `/api/v1/garbage/detections` 回灌检测结果
+
+考虑到树莓派部署差异，`rover_vision` 默认不在 bringup 中启用，只有在模型文件、Python 依赖和相机话题都准备好时才打开。当前默认参数已经转向 TACO 数据集工作流：
+
+- 模型权重默认指向 `taco_pi_best.pt`
+- 标签映射支持 TACO 官方 `class_map` CSV
+- 在树莓派上默认开启 `pi_mode`、抽帧和缩图
+
+这样做的目标，是兼容 TACO 的多类别识别，同时把推理成本控制在 Pi5 可接受的范围内。
+
 ## 树莓派上的语音策略
 
 语音能力默认是可选项，因为树莓派 5 的算力依然有限，不能让语音推理影响导航和建图主链路。

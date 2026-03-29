@@ -4,3 +4,8 @@
     api_base_url: http://127.0.0.1:8000
     allow_browser_commands: true
     require_safe_zone_validation: true
+    whole_home_garbage_scan_path: /api/v1/missions/whole-home-garbage-scan
+    garbage_detection_report_path: /api/v1/garbage/detections
+    report_channel: openclaw
+    report_target: feishu
+    require_photo: true

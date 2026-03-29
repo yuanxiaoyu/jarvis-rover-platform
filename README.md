@@ -76,6 +76,34 @@ docker compose up -d
 - 浏览器与小车之间的麦克风语音对话能力
 - 结合 Nav2 keepout filter 的本地避障与安全层
 - 适配树莓派算力约束的 `贾维斯` 唤醒词、ASR、TTS 预留方案
+- 语音触发的整屋垃圾扫描与 OpenClaw 飞书上报，确保发现垃圾时自动拍照、记录位置并通过企业通知推送
+
+### 垃圾扫描与 OpenClaw 上报
+
+对运营者来说，理想的流程是：对着麦克风说“贾维斯，请帮我扫描整个房屋，发现有垃圾请拍照告诉我”，系统便会把该指令交给 AI/任务桥接层，触发一次全宅扫描任务。一旦视觉、雷达或语义模型在任意房间发现垃圾，就会拍摄当前视野，将定位信息、任务状态与图片交给后端的 `OpenClaw` 上报组件，由它再通过绑定的飞书机器人/应用把结果推送到运维组。
+
+当前仓库已经补齐的接口链路如下：
+
+- `POST /api/v1/voice/command`：识别“整屋扫描 + 垃圾拍照上报”语音意图
+- `POST /api/v1/missions/whole-home-garbage-scan`：直接创建整屋垃圾巡检任务
+- `POST /api/v1/garbage/detections`：由视觉/语义检测链路回灌垃圾发现结果，并按配置自动上报 OpenClaw
+
+ROS2 侧现在新增了 `rover_vision` 包，提供一个 YOLO 类垃圾检测节点：它会订阅相机图像，轮询当前是否存在运行中的 `whole_home_scan` 任务，命中垃圾类标签后将抓拍图片保存到本地，再调用 `POST /api/v1/garbage/detections` 触发 OpenClaw/飞书上报。
+
+如果采用 TACO 数据集，当前默认配置已经切到 TACO 风格：默认权重路径为 `/workspace/models/yolo/taco_pi_best.pt`，并支持通过 `label_map_csv` 读取 TACO 官方那种 `source_label,target_label` 映射表。这样你既可以用 60 个原始细类模型，也可以用官方推荐的 `map_10.csv`、`map_17.csv` 这类合并类别方案。
+
+为了兼容树莓派运行，`rover_vision` 还新增了 Pi 轻量参数：
+
+- `pi_mode: true`
+- `frame_stride: 6`
+- `max_image_dim: 640`
+- `model_input_size: 640`
+
+这套默认值的目标是降低 Pi5 上的 CPU/GPU 压力，优先保证“能持续巡检并及时抓拍上报”。
+
+YOLO 检测默认通过 `ultralytics` 后端加载 `/workspace/models/yolo/yolov8n.pt`，发现对象后会把带注释框的图片和 metadata 写入 `capture_dir`（默认 `/tmp/rover_captures`），并把 `capture_base_url` 合成的访问地址随 payload 发给 API。想要把图片对外发布，可在容器里把 `capture_dir` 挂载到一个简单的静态服务器或 nginx 目录，并在 `vision.yaml` 中把 `capture_base_url` 指向对应的前缀。所有关键参数（`min_confidence`、`report_cooldown_seconds`、`allowed_labels`、`save_annotated_capture`）都可以在 `ros2_ws/src/rover_vision/params/vision.yaml` 里调节。
+
+这样既能保持树莓派侧的低延迟扫房，又能把垃圾发现结果及时同步到协作群。使用前请在 `.env` 中配置 `ROVER_OPENCLAW_WEBHOOK_URL`，并在机器人环境安装 `ultralytics`、`pillow`、`numpy`。主启动默认关闭视觉检测，需要在 ROS2 bringup 时显式打开 `use_garbage_detection:=true`。
 
 ## 上游参考
 
