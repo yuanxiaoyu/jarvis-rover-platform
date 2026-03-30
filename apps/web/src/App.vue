@@ -45,6 +45,8 @@ const iconPaths = {
     'M6 16.5a8 8 0 1 1 12 0M12 12l4-2M12 12l-2.5 4.5M7 16.5h10',
   current:
     'M13.5 3.5 7.5 12h3l-1 8.5 6-8h-3l1-9z',
+  collapse:
+    'M6.5 9.5 12 15l5.5-5.5',
   target:
     'M12 4.5v3M12 16.5v3M4.5 12h3M16.5 12h3M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
   timer:
@@ -147,6 +149,9 @@ const compactDestinationLabel = computed(() => {
   const text = destinationSummary.value
   return text.length > 8 ? `${text.slice(0, 8)}...` : text
 })
+const hasPlannedPath = computed(
+  () => snapshot.value.runtime.path.status === 'planned' && snapshot.value.runtime.path.waypoints.length > 1,
+)
 const activeRouteLabel = computed(() => {
   const ids = snapshot.value.runtime.path.waypoints.length > 1 ? snapshot.value.runtime.path.waypoints.length : 0
   if (snapshot.value.runtime.path.destination && selectedZone.value) {
@@ -224,6 +229,16 @@ const draftWallPreview = computed(() => {
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`
+}
+
+function nextRegionLabelName(): string {
+  const used = snapshot.value.world.regionLabels
+    .map((label) => /^新增标签(\d+)$/.exec(label.name)?.[1])
+    .filter((value): value is string => Boolean(value))
+    .map((value) => Number(value))
+
+  const next = used.length > 0 ? Math.max(...used) + 1 : 1
+  return `新增标签${next}`
 }
 
 function updateStatusLine(message: string): void {
@@ -375,6 +390,66 @@ function navigateTo(destination: Vec2, sourceLabel = '右键导航'): void {
   })
   appendConversation('user', `${sourceLabel}：前往 ${targetLabel}`)
   appendConversation('assistant', `已生成 ${path.length} 个路径点，小车开始自动导航。`)
+  syncSceneRuntime()
+}
+
+function planRouteTo(destination: Vec2, sourceLabel = '右键规划'): void {
+  if (!mappingReady.value) {
+    updateStatusLine('地图尚未建模，请先执行全屋扫描。')
+    return
+  }
+
+  const start: Vec2 = [snapshot.value.runtime.robotPose.x, snapshot.value.runtime.robotPose.y]
+  const path = buildNavigationPath(snapshot.value.world, start, destination)
+  if (path.length < 2) {
+    updateStatusLine('当前目标不可达，请调整目标点或虚拟墙。')
+    appendConversation('system', '规划目标不可达，可能被限制区或虚拟墙阻断。')
+    return
+  }
+
+  const zone = findZoneAtPoint(snapshot.value.world, destination)
+  const targetLabel = zone?.name ?? `${destination[0].toFixed(1)}m, ${destination[1].toFixed(1)}m`
+
+  snapshot.value.runtime.selectedZoneId = zone?.id ?? snapshot.value.runtime.selectedZoneId
+  snapshot.value.runtime.path = {
+    id: `goto-${Date.now()}`,
+    status: 'planned',
+    waypoints: path,
+    destination,
+    algorithm: 'A* + 虚拟墙避让',
+    lastUpdatedMs: Date.now(),
+  }
+  snapshot.value.runtime.mission.mode = 'idle'
+  snapshot.value.runtime.mission.objective = `已规划至 ${targetLabel}`
+  updateStatusLine(`已规划到 ${targetLabel} 的路径，请点击执行按钮开始。`)
+  upsertTask({
+    id: 'task-navigation',
+    title: `已规划至 ${targetLabel}`,
+    status: 'queued',
+    progressPct: 0,
+    etaSec: Math.max(45, Math.round(path.length * 18)),
+  })
+  appendConversation('user', `${sourceLabel}：${targetLabel}`)
+  appendConversation('assistant', `路径已规划完成，共 ${path.length} 个路径点，等待执行。`)
+  syncSceneRuntime()
+}
+
+function executePlannedPath(): void {
+  if (!hasPlannedPath.value) {
+    return
+  }
+
+  snapshot.value.runtime.path = {
+    ...snapshot.value.runtime.path,
+    status: 'executing',
+    lastUpdatedMs: Date.now(),
+  }
+  snapshot.value.runtime.mission.mode = 'autonomy'
+  updateStatusLine('已开始执行规划路径。')
+  snapshot.value.runtime.tasks = snapshot.value.runtime.tasks.map((task) =>
+    task.id === 'task-navigation' ? { ...task, status: 'running', progressPct: Math.max(task.progressPct, 6) } : task,
+  )
+  appendConversation('assistant', '已执行规划路径，小车开始移动。')
   syncSceneRuntime()
 }
 
@@ -574,6 +649,10 @@ function beginLabelPlacement(labelId: string | null = null): void {
   labelPlacementMode.value = true
   labelPlacementTargetId.value = labelId
 
+  if (!labelId && !newLabelName.value.trim()) {
+    newLabelName.value = nextRegionLabelName()
+  }
+
   if (labelId) {
     updateStatusLine('标签重定位模式已开启，请在画布中点击新的标签位置。')
   } else {
@@ -671,23 +750,23 @@ function navigateWithCustomWaypoints(destination: Vec2): void {
   snapshot.value.runtime.selectedZoneId = zone?.id ?? snapshot.value.runtime.selectedZoneId
   snapshot.value.runtime.path = {
     id: `goto-${Date.now()}`,
-    status: 'executing',
+    status: 'planned',
     waypoints: path,
     destination,
     algorithm: `节点规划 ${customWaypoints.value.length} 段`,
     lastUpdatedMs: Date.now(),
   }
-  snapshot.value.runtime.mission.mode = 'autonomy'
-  snapshot.value.runtime.mission.objective = `按自定义节点导航至 ${targetLabel}`
-  updateStatusLine(`已生成 ${customWaypoints.value.length} 个自定义节点路径，正在前往 ${targetLabel}`)
+  snapshot.value.runtime.mission.mode = 'idle'
+  snapshot.value.runtime.mission.objective = `已规划 ${customWaypoints.value.length} 节点至 ${targetLabel}`
+  updateStatusLine(`已生成 ${customWaypoints.value.length} 个自定义节点路径，请点击执行按钮开始。`)
   upsertTask({
     id: 'task-navigation',
-    title: `节点导航至 ${targetLabel}`,
-    status: 'running',
-    progressPct: 6,
+    title: `节点路径至 ${targetLabel}`,
+    status: 'queued',
+    progressPct: 0,
     etaSec: Math.max(50, Math.round(path.length * 18)),
   })
-  appendConversation('assistant', `已按 ${customWaypoints.value.length} 个节点生成路径并开始导航。`)
+  appendConversation('assistant', `已按 ${customWaypoints.value.length} 个节点生成路径，等待执行。`)
   waypointMode.value = false
   customWaypoints.value = []
   syncSceneRuntime()
@@ -710,13 +789,11 @@ function handleMapPrimary(point: Vec2): void {
       return
     }
 
-    const zone = snapshot.value.world.zones.find((item) => item.id === zoneId)
-    const name = targetLabel?.name || newLabelName.value.trim() || zone?.name || `区域标签 ${snapshot.value.world.regionLabels.length + 1}`
-    const existingLabel = snapshot.value.world.regionLabels.find((label) => label.zoneId === zoneId)
-    const nextId = targetLabel?.id ?? existingLabel?.id ?? createId('label')
+    const name = targetLabel?.name || newLabelName.value.trim() || nextRegionLabelName()
+    const nextId = targetLabel?.id ?? createId('label')
 
     snapshot.value.world.regionLabels = [
-      ...snapshot.value.world.regionLabels.filter((label) => label.id !== nextId && label.zoneId !== zoneId),
+      ...snapshot.value.world.regionLabels.filter((label) => label.id !== nextId),
       {
         id: nextId,
         name,
@@ -797,7 +874,7 @@ function handleMapSecondary(point: Vec2): void {
     return
   }
 
-  navigateTo(point)
+  planRouteTo(point)
 }
 
 function addRegionLabel(): void {
@@ -814,48 +891,34 @@ function upsertRegionLabelForZone(zoneId: string, name?: string): void {
     return
   }
 
-  const zone = snapshot.value.world.zones.find((item) => item.id === zoneId)
-  const nextName = name?.trim() || zone?.name || '区域标签'
-  const existingLabel = snapshot.value.world.regionLabels.find((label) => label.zoneId === zoneId)
+  const nextName = name?.trim() || nextRegionLabelName()
   const position: Vec2 = [anchor[0], anchor[1]]
 
-  snapshot.value.world.regionLabels = existingLabel
-    ? snapshot.value.world.regionLabels.map((label) =>
-        label.id === existingLabel.id ? { ...label, name: nextName, position } : label,
-      )
-    : [
-        ...snapshot.value.world.regionLabels,
-        {
-          id: createId('label'),
-          name: nextName,
-          position,
-          zoneId,
-        },
-      ]
+  snapshot.value.world.regionLabels = [
+    ...snapshot.value.world.regionLabels,
+    {
+      id: createId('label'),
+      name: nextName,
+      position,
+      zoneId,
+    },
+  ]
 
-  updateStatusLine(`${existingLabel ? '已更新' : '已为区域添加'}标签：${nextName}`)
-  appendConversation('system', `${existingLabel ? '已更新' : '已新增'}区域标签：${nextName}`)
+  updateStatusLine(`已新增区域标签：${nextName}`)
+  appendConversation('system', `已新增区域标签：${nextName}`)
   syncSceneWorld()
 }
 
 function renameRegionLabel(labelId: string, event: Event): void {
   const value = (event.target as HTMLInputElement).value.trim()
-  const target = snapshot.value.world.regionLabels.find((label) => label.id === labelId)
-  snapshot.value.world.regionLabels = snapshot.value.world.regionLabels.map((label) => {
-    const shouldUpdate = label.id === labelId || (target?.zoneId && label.zoneId === target.zoneId)
-    return shouldUpdate ? { ...label, name: value || label.name } : label
-  })
+  snapshot.value.world.regionLabels = snapshot.value.world.regionLabels.map((label) =>
+    label.id === labelId ? { ...label, name: value || label.name } : label,
+  )
   syncSceneWorld()
 }
 
 function removeRegionLabel(labelId: string): void {
-  const target = snapshot.value.world.regionLabels.find((label) => label.id === labelId)
-  snapshot.value.world.regionLabels = snapshot.value.world.regionLabels.filter(
-    (label) => label.id !== labelId && (!target?.zoneId || label.zoneId !== target.zoneId),
-  )
-  if (target?.zoneId && snapshot.value.runtime.selectedZoneId === target.zoneId) {
-    snapshot.value.runtime.selectedZoneId = null
-  }
+  snapshot.value.world.regionLabels = snapshot.value.world.regionLabels.filter((label) => label.id !== labelId)
   syncSceneWorld()
 }
 
@@ -1123,9 +1186,14 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="control-dock">
-          <button type="button" class="control-button" title="开始巡检" @click="startPatrol">
+          <button
+            type="button"
+            class="control-button"
+            :title="hasPlannedPath ? '执行规划路径' : '开始巡检'"
+            @click="hasPlannedPath ? executePlannedPath() : startPatrol()"
+          >
             <IconGlyph name="play" />
-            <span>巡检</span>
+            <span>{{ hasPlannedPath ? '执行' : '巡检' }}</span>
           </button>
           <button type="button" class="control-button" title="暂停" @click="pauseMission">
             <IconGlyph name="pause" />
@@ -1166,11 +1234,16 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="chat-panel__actions">
-              <button type="button" class="chat-panel__shortcut chat-panel__shortcut--ghost" @click="closeChatPanel">
-                收起
+              <button
+                type="button"
+                class="chat-panel__icon-action chat-panel__icon-action--ghost"
+                title="收起"
+                @click="closeChatPanel"
+              >
+                <IconGlyph name="collapse" />
               </button>
-              <button type="button" class="chat-panel__shortcut" @click="openDialog('tasks')">
-                任务
+              <button type="button" class="chat-panel__icon-action" title="任务" @click="openDialog('tasks')">
+                <IconGlyph name="task" />
               </button>
             </div>
           </header>

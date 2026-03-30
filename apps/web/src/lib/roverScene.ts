@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 
-import type { RuntimeState, Vec2, VirtualWall, WorldModel } from '@/types/contract'
+import type { RegionLabel, RuntimeState, Vec2, VirtualWall, WorldModel } from '@/types/contract'
 
 interface RoverSceneOptions {
   onZoneSelect?: (zoneId: string) => void
@@ -35,10 +35,15 @@ interface ZoneVisual {
   shadow: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>
   outline: THREE.LineLoop<THREE.BufferGeometry, THREE.LineBasicMaterial>
   edges: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>
-  label: CSS2DObject
-  labelElement: HTMLDivElement
   palette: ZonePalette
   height: number
+}
+
+interface RegionLabelVisual {
+  id: string
+  zoneId: string | null
+  object: CSS2DObject
+  element: HTMLDivElement
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -90,6 +95,7 @@ export class RoverScene {
   )
   private readonly callbacks: RoverSceneOptions
   private readonly zoneVisuals = new Map<string, ZoneVisual>()
+  private readonly regionLabelVisuals: RegionLabelVisual[] = []
   private readonly wallObjects: THREE.Object3D[] = []
   private resizeObserver?: ResizeObserver
   private routeMesh?: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>
@@ -142,6 +148,7 @@ export class RoverScene {
     if (world.mapping.status === 'ready') {
       this.buildZones(world)
       this.buildVirtualWalls(world.virtualWalls)
+      this.buildRegionLabels(world.regionLabels)
     }
     this.onResize()
     this.syncZoneState()
@@ -350,7 +357,7 @@ export class RoverScene {
     for (const zone of world.zones) {
       const visual = this.createZoneVisual(zone, world)
       this.zoneVisuals.set(zone.id, visual)
-      this.worldGroup.add(visual.shadow, visual.mesh, visual.floor, visual.floorGrid, visual.outline, visual.edges, visual.label)
+      this.worldGroup.add(visual.shadow, visual.mesh, visual.floor, visual.floorGrid, visual.outline, visual.edges)
     }
   }
 
@@ -441,19 +448,6 @@ export class RoverScene {
       }),
     )
 
-    const labelModel = [...world.regionLabels].reverse().find((item) => item.zoneId === zone.id)
-    const labelName = labelModel?.name ?? ''
-    const labelElement = document.createElement('div')
-    labelElement.className = labelModel ? 'map-label' : 'map-label is-hidden'
-    labelElement.innerHTML = `
-      <span class="map-label__name">${labelName}</span>
-      <span class="map-label__meta">${labelModel ? zone.category : ''}</span>
-    `
-
-    const label = new CSS2DObject(labelElement)
-    const anchor = labelModel?.position ?? zone.labelAnchor ?? center
-    label.position.set(anchor[0], zoneHeight + 0.12, anchor[1])
-
     return {
       mesh,
       topMaterial,
@@ -464,8 +458,6 @@ export class RoverScene {
       shadow,
       outline,
       edges,
-      label,
-      labelElement,
       palette,
       height: zoneHeight,
     }
@@ -497,6 +489,27 @@ export class RoverScene {
       waypoint.position.set((wall.start[0] + wall.end[0]) / 2, 0.8, (wall.start[1] + wall.end[1]) / 2)
       this.worldGroup.add(line, waypoint)
       this.wallObjects.push(line, waypoint)
+    }
+  }
+
+  private buildRegionLabels(labels: RegionLabel[]): void {
+    for (const labelModel of labels) {
+      const element = document.createElement('div')
+      element.className = 'map-label'
+      element.innerHTML = `
+        <span class="map-label__name">${labelModel.name}</span>
+        <span class="map-label__meta">${labelModel.zoneId ? '标签' : '自定义'}</span>
+      `
+
+      const object = new CSS2DObject(element)
+      object.position.set(labelModel.position[0], 0.72, labelModel.position[1])
+      this.regionLabelVisuals.push({
+        id: labelModel.id,
+        zoneId: labelModel.zoneId,
+        object,
+        element,
+      })
+      this.worldGroup.add(object)
     }
   }
 
@@ -725,13 +738,16 @@ export class RoverScene {
       visual.floorGrid.position.y = 0.055 + lift * 0.2
       visual.outline.position.y = lift
       visual.edges.position.y = lift
-      visual.label.position.y = visual.height + 0.12 + lift
       ;(visual.shadow.material as THREE.MeshBasicMaterial).opacity = isCurrent ? 0.16 : isHovered ? 0.12 : 0.1
       visual.outline.material.opacity = isCurrent ? 0.72 : isHovered ? 0.5 : 0.42
       visual.edges.material.opacity = isCurrent ? 0.34 : isHovered ? 0.24 : 0.2
+    }
 
-      visual.labelElement.classList.toggle('is-current', isCurrent)
-      visual.labelElement.classList.toggle('is-hovered', isHovered)
+    for (const label of this.regionLabelVisuals) {
+      const isCurrent = !!label.zoneId && label.zoneId === this.selectedZoneId
+      const isHovered = !!label.zoneId && label.zoneId === this.hoveredZoneId
+      label.element.classList.toggle('is-current', isCurrent)
+      label.element.classList.toggle('is-hovered', isHovered)
     }
     this.render()
   }
@@ -806,9 +822,15 @@ export class RoverScene {
       visual.outline.material.dispose()
       visual.edges.geometry.dispose()
       visual.edges.material.dispose()
-      this.worldGroup.remove(visual.shadow, visual.mesh, visual.floor, visual.floorGrid, visual.outline, visual.edges, visual.label)
+      this.worldGroup.remove(visual.shadow, visual.mesh, visual.floor, visual.floorGrid, visual.outline, visual.edges)
     }
     this.zoneVisuals.clear()
+
+    for (const label of this.regionLabelVisuals) {
+      this.worldGroup.remove(label.object)
+      label.element.remove()
+    }
+    this.regionLabelVisuals.length = 0
 
     for (const object of this.wallObjects) {
       this.worldGroup.remove(object)

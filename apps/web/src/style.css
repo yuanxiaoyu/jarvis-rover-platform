@@ -606,6 +606,22 @@ textarea {
   border: 1px solid rgba(151, 226, 207, 0.1);
 }
 
+.chat-panel__icon-action {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 0;
+  background: linear-gradient(135deg, #1c5b57, #3b7a6e);
+  color: #f0fcf8;
+}
+
+.chat-panel__icon-action--ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(151, 226, 207, 0.1);
+}
+
 .chat-fab {
   left: 8px;
   bottom: 8px;
