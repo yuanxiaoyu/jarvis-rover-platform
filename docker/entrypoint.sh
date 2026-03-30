@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+set +u
 source /opt/ros/humble/setup.bash
 
 if [[ -f /workspace/ros2_ws/install/setup.bash ]]; then
   source /workspace/ros2_ws/install/setup.bash
 fi
+set -u
 
 case "${1:-api}" in
   api)

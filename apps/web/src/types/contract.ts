@@ -14,6 +14,13 @@ export interface MapZone {
   selectable: boolean
 }
 
+export interface RegionLabel {
+  id: string
+  name: string
+  position: Vec2
+  zoneId: string | null
+}
+
 export interface VirtualWall {
   id: string
   name: string
@@ -21,6 +28,13 @@ export interface VirtualWall {
   end: Vec2
   height: number
   enabled: boolean
+}
+
+export interface MappingState {
+  status: 'unmapped' | 'scanning' | 'ready'
+  progressPct: number
+  hint: string
+  lastCompletedAt: number | null
 }
 
 export interface RobotPose {
@@ -37,6 +51,9 @@ export interface PathState {
   id: string
   status: 'idle' | 'planned' | 'executing' | 'paused' | 'completed' | 'aborted'
   waypoints: Vec2[]
+  destination: Vec2 | null
+  algorithm: string
+  lastUpdatedMs: number
 }
 
 export interface LidarPoint {
@@ -88,9 +105,16 @@ export interface TaskItem {
 }
 
 export interface MissionState {
-  mode: 'idle' | 'autonomy' | 'manual' | 'paused' | 'returning'
+  mode: 'idle' | 'autonomy' | 'manual' | 'paused' | 'returning' | 'scanning'
   objective: string
   statusLine: string
+}
+
+export interface ConversationMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: string
 }
 
 export interface WorldModel {
@@ -98,7 +122,9 @@ export interface WorldModel {
   mapName: string
   bounds: MapBounds
   zones: MapZone[]
+  regionLabels: RegionLabel[]
   virtualWalls: VirtualWall[]
+  mapping: MappingState
 }
 
 export interface RuntimeState {
@@ -111,6 +137,7 @@ export interface RuntimeState {
   tasks: TaskItem[]
   voice: VoiceState
   selectedZoneId: string | null
+  conversationHistory: ConversationMessage[]
 }
 
 export interface RoverSnapshot {

@@ -16,3 +16,4 @@ coverage/
 .coverage
 .idea/
 .vscode/
+.gstack/
