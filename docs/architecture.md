@@ -65,6 +65,11 @@ Yahboom 小车已经提供了底层平台能力，包括树莓派 5、micro-ROS 
 
 这样浏览器不需要直接理解 ROS2 话题细节，只需要面对稳定的 REST / WebSocket 协议。
 
+配套文档：
+
+- [integration-contract.md](/Users/yuanxiaoyu/Desktop/plan/docs/integration-contract.md)
+- [ros-integration-plan.md](/Users/yuanxiaoyu/Desktop/plan/docs/ros-integration-plan.md)
+
 ### 4. 浏览器控制台层
 
 UI 采用单屏操作台设计，而不是多页跳转式后台。

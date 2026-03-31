@@ -341,6 +341,19 @@ Web 中的地图场景应明确区分三种状态：
 }
 ```
 
+### WebSocket 最小会话示例
+
+建议在接车第一阶段，至少保证浏览器能收到这 4 类事件：
+
+```json
+{"type":"map.snapshot","payload":{"map_id":"house-floor-01","mapping_status":"ready"}}
+{"type":"robot.pose","payload":{"x":6.2,"y":6.0,"yaw_rad":1.41}}
+{"type":"mission.state","payload":{"status":"planned","objective":"导航至东侧巡检区"}}
+{"type":"robot.telemetry","payload":{"battery_percent":82,"localization_confidence":0.93}}
+```
+
+如果这 4 类事件都稳定了，前端地图、位姿、路径状态和基础遥测就能基本跑通。
+
 ## 前后端字段对照表
 
 下面这张表的目的，是减少后续接车时“前端叫一个名字，API 叫另一个名字，ROS2/后端模型又叫第三个名字”的对齐成本。
@@ -414,6 +427,34 @@ Web 中的地图场景应明确区分三种状态：
 - `linearVelocity`
 
 后端模型可以保留现有 Python / Pydantic 风格，但对外返回给 Web 时，应在 API 层完成一次统一命名映射。
+
+## 最小可交付协议集合
+
+如果要用最小代价先打通真机闭环，建议第一阶段只实现下面这些协议：
+
+### REST
+
+- `GET /api/health`
+- `GET /api/map`
+- `GET /api/system/snapshot`
+- `POST /api/missions/navigate`
+
+### WebSocket
+
+- `map.snapshot`
+- `robot.pose`
+- `mission.state`
+- `robot.telemetry`
+
+### 暂时可以延后
+
+- 标签持久化接口
+- 虚拟墙持久化接口
+- 相机流优化
+- 语音状态
+- 垃圾巡检联动
+
+原因很简单：先把“地图 + 位姿 + 路径 + 执行”闭环打通，再做编辑和体验层，会稳得多。
 
 ## 模型级对齐草案
 

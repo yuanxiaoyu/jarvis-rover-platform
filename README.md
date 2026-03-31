@@ -29,7 +29,16 @@
 - `services/api`：FastAPI 网关，提供 REST / WebSocket / 静态资源托管
 - `ros2_ws/src`：ROS2 包，覆盖启动、建图、导航、安全、AI、语音等模块
 - `docker`：容器镜像与运行脚本
-- `docs`：架构、接口约定、硬件与运行策略文档
+- `docs`：架构、接口约定、硬件与运行策略文档，以及真实 ROS 小车接入计划
+
+### 文档导航
+
+建议按下面顺序阅读文档：
+
+- [docs/architecture.md](/Users/yuanxiaoyu/Desktop/plan/docs/architecture.md)：理解整体系统分层、职责边界和落地顺序
+- [docs/integration-contract.md](/Users/yuanxiaoyu/Desktop/plan/docs/integration-contract.md)：查看 Web / API / ROS2 的协议、payload、字段对照和 backlog
+- [docs/ros-integration-plan.md](/Users/yuanxiaoyu/Desktop/plan/docs/ros-integration-plan.md)：按里程碑推进真实小车接入
+- [docs/pi-runtime-profile.md](/Users/yuanxiaoyu/Desktop/plan/docs/pi-runtime-profile.md)：树莓派运行资源策略
 
 ## 运行策略
 
