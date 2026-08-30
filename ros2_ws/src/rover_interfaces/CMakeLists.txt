@@ -13,7 +13,9 @@ find_package(geometry_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SemanticZone.msg"
   "msg/Telemetry.msg"
+  "msg/MappingSession.msg"
   "srv/SubmitVoiceCommand.srv"
+  "srv/MappingCommand.srv"
   DEPENDENCIES std_msgs geometry_msgs
 )
 

@@ -1,25 +1,37 @@
-# Rover API (Scaffold)
+# Rover API
 
-This service provides a FastAPI backend scaffold for rover control-plane features:
+This service provides the FastAPI control plane for the rover platform:
 
-- REST API for map, semantic zones, tasks, voice commands, and sensor snapshots
-- WebSocket mock telemetry stream for frontend and integration testing
-- Data models aligned to **MS200 TOF lidar 2D mapping** constraints
+- REST API for maps, mapping sessions, semantic zones, tasks, voice commands, and sensors;
+- a WebSocket telemetry stream for frontend and integration testing;
+- Pydantic models aligned to MS200 TOF lidar 2D mapping constraints;
+- an optional background rclpy bridge for the real mapping-session service.
 
-## Mapping model assumptions
+The API does not model true volumetric scans. A future 3D view is reconstructed from occupancy geometry and semantic zones.
 
-- Mapping source is 2D occupancy/grid from MS200 TOF lidar
-- "3D view" is represented as reconstructed layers from occupancy geometry + semantic zones metadata
-- This API does not model true volumetric scans
-
-## Run locally
+## Run locally without ROS
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+ROVER_ROS_BRIDGE_ENABLED=false uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+When the bridge is disabled, the API uses a deterministic in-memory backend and never sends commands to a robot.
+
+## Run with the ROS mapping runtime
+
+The production runtime sets:
+
+```dotenv
+ROS_DOMAIN_ID=20
+ROVER_ROS_BRIDGE_ENABLED=true
+ROVER_ROS_BRIDGE_REQUIRED=true
+ROVER_ROS_SERVICE_TIMEOUT_SECONDS=10
+```
+
+If `ROVER_ROS_BRIDGE_REQUIRED=true`, API startup fails when `/mapping/command` cannot be reached; it never silently falls back to a fake backend.
 
 ## Endpoints
 
@@ -28,9 +40,27 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - `GET|PUT /api/v1/map`
 - `GET|POST|DELETE /api/v1/zones`
 - `GET|POST|PATCH /api/v1/tasks`
+- `GET /api/v1/mapping`
+- `POST /api/v1/mapping/start`
+- `POST /api/v1/mapping/pause`
+- `POST /api/v1/mapping/resume`
+- `POST /api/v1/mapping/stop`
+- `POST /api/v1/mapping/save`
+- `POST /api/v1/mapping/load`
 - `POST /api/v1/missions/navigate`
 - `POST /api/v1/missions/ai-command`
 - `POST /api/v1/voice/session`
 - `POST /api/v1/voice/command`
 - `GET /api/v1/sensors`
 - `WS /ws/telemetry`
+
+`202` means the mapping command was accepted by the session worker, not that motion has already started. Poll `GET /api/v1/mapping` until the state is stable. `409` is a state conflict, `422` is invalid request data, and `503` means the ROS bridge/service is unavailable.
+
+A load request must contain `session_id`, `x`, `y`, `yaw`, and `match_type` (`2` for `START_AT_GIVEN_POSE`, `3` for `LOCALIZE_AT_POSE`). The server validates the model and the ROS mapping node validates the saved map and free-space pose again.
+
+## Mapping model assumptions
+
+- Mapping source is a 2D occupancy grid from the MS200 TOF lidar.
+- A pose graph and map are saved as versioned revisions under the configured session directory.
+- The 3D view is reconstructed from occupancy geometry and semantic-zone metadata.
+- `WS /ws/telemetry` remains a lightweight/mock telemetry stream until a dedicated ROS map stream is enabled.

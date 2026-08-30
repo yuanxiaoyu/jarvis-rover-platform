@@ -11,6 +11,12 @@ log/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+.env
+# Real-machine evidence and generated wheels stay local.
+data/baselines/
+data/evidence/
+*.whl
 .mypy_cache/
 coverage/
 .coverage

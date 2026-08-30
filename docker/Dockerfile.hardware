@@ -1,0 +1,9 @@
+FROM yahboomtechnology/ros-humble:4.1.2
+
+# The vendor /root/1.sh still starts Supervisor. Supervisor's existing
+# ChassisServer entry points at /root/run_handle.sh, so replacing that one
+# script remaps joystick commands while leaving the MCU-backed YB_Car_Node
+# and sensor publishers untouched.
+COPY docker/vendor/joy_remapped.launch.py /root/joy_remapped.launch.py
+COPY docker/vendor/run_handle.sh /root/run_handle.sh
+RUN chmod +x /root/run_handle.sh

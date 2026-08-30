@@ -1,0 +1,22 @@
+# Managed-By: jarvis-rover-runtime-installer
+[Unit]
+Description=Jarvis Rover runtime (official Yahboom hardware layer)
+Wants=network-online.target
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO_DIR@
+Environment=COMPOSE_PROFILES=
+Environment=ROS_DOMAIN_ID=20
+ExecStart=/usr/bin/docker compose --project-directory @REPO_DIR@ --env-file @REPO_DIR@/.env up --no-build --no-color rover-runtime
+ExecStop=-/usr/bin/docker compose --project-directory @REPO_DIR@ --env-file @REPO_DIR@/.env stop --timeout 30 rover-runtime
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=45
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target

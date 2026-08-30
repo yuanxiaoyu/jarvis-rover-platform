@@ -10,16 +10,21 @@
   <depend>rclpy</depend>
   <depend>launch</depend>
   <depend>launch_ros</depend>
+  <depend>ament_index_python</depend>
+  <depend>imu_complementary_filter</depend>
+  <depend>robot_localization</depend>
+  <depend>slam_toolbox</depend>
+  <depend>tf2_ros</depend>
+  <depend>rover_interfaces</depend>
 
-  <exec_depend>rover_mapping</exec_depend>
-  <exec_depend>rover_navigation</exec_depend>
   <exec_depend>rover_safety</exec_depend>
-  <exec_depend>rover_ai_bridge</exec_depend>
-  <exec_depend>rover_voice_bridge</exec_depend>
+  <exec_depend>rover_mapping</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
-  <export />
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
 </package>
 

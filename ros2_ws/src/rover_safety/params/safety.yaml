@@ -1,8 +1,15 @@
-/**:
+safety_node:
   ros__parameters:
     scan_topic: /scan
-    cmd_vel_in: /cmd_vel
-    cmd_vel_out: /cmd_vel_safe
-    keepout_mask_topic: /keepout_mask
+    cmd_vel_in: /cmd_vel_teleop
+    cmd_vel_out: /cmd_vel
+    motion_allowed_topic: /mapping/motion_allowed
     emergency_stop_topic: /emergency_stop
+    stop_topic: /mapping/stop_cmd_vel
+    command_timeout_seconds: 0.25
+    scan_timeout_seconds: 0.75
+    motion_status_timeout_seconds: 0.75
+    publish_hz: 20.0
+    max_linear_x_mps: 0.35
+    max_angular_z_rps: 1.2
     min_clearance_m: 0.28

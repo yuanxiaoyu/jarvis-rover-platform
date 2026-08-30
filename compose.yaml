@@ -8,26 +8,39 @@ services:
     network_mode: host
     privileged: true
     environment:
-      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-30}
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-20}
       ROVER_TELEMETRY_INTERVAL_SECONDS: ${ROVER_TELEMETRY_INTERVAL_SECONDS:-1.0}
-      JARVIS_ENABLE_WAKE_WORD: ${JARVIS_ENABLE_WAKE_WORD:-false}
-      JARVIS_ENABLE_ASR: ${JARVIS_ENABLE_ASR:-false}
-      JARVIS_ENABLE_TTS: ${JARVIS_ENABLE_TTS:-false}
-    devices:
-      - ${MICROROS_SERIAL_DEVICE:-/dev/myserial}:${MICROROS_SERIAL_DEVICE:-/dev/myserial}
-      - ${RPLIDAR_DEVICE:-/dev/rplidar}:${RPLIDAR_DEVICE:-/dev/rplidar}
+      ROVER_ROS_BRIDGE_ENABLED: ${ROVER_ROS_BRIDGE_ENABLED:-true}
+      ROVER_ROS_BRIDGE_REQUIRED: ${ROVER_ROS_BRIDGE_REQUIRED:-true}
+      ROVER_ROS_SERVICE_TIMEOUT_SECONDS: ${ROVER_ROS_SERVICE_TIMEOUT_SECONDS:-10.0}
+      ROVER_ROS_STATUS_TIMEOUT_SECONDS: ${ROVER_ROS_STATUS_TIMEOUT_SECONDS:-2.0}
+      ROVER_MAPPING_SESSION_DIR: ${ROVER_MAPPING_SESSION_DIR:-/workspace/data/maps}
+      ROVER_MAPPING_STARTUP_TIMEOUT_SECONDS: ${ROVER_MAPPING_STARTUP_TIMEOUT_SECONDS:-60}
+      ROVER_RUNTIME_EVIDENCE_DIR: ${ROVER_RUNTIME_EVIDENCE_DIR:-/workspace/data/evidence}
+      ROVER_SLAM_PARAMS_FILE: ${ROVER_SLAM_PARAMS_FILE:-}
+      ROVER_ENABLE_WAKE_WORD: ${ROVER_ENABLE_WAKE_WORD:-false}
+      ROVER_ENABLE_ASR: ${ROVER_ENABLE_ASR:-false}
+      ROVER_ENABLE_TTS: ${ROVER_ENABLE_TTS:-false}
+      ROVER_CAMERA_STREAM_MODE: ${ROVER_CAMERA_STREAM_MODE:-mjpeg}
+      ROVER_TELEMETRY_HZ: ${ROVER_TELEMETRY_HZ:-2}
+      ROVER_LIDAR_DOWNSAMPLE: ${ROVER_LIDAR_DOWNSAMPLE:-1}
     volumes:
       - ./models:/workspace/models
       - ./data:/workspace/data
-    command: ["api"]
+    command: ["runtime"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
 
   micro-ros-agent:
+    profiles: ["micro-ros-agent"]
     image: microros/micro-ros-agent:humble
     container_name: jarvis-micro-ros-agent
     restart: unless-stopped
     network_mode: host
-    depends_on:
-      - rover-runtime
     command:
       [
         "serial",
@@ -38,3 +51,23 @@ services:
       ]
     devices:
       - ${MICROROS_SERIAL_DEVICE:-/dev/myserial}:${MICROROS_SERIAL_DEVICE:-/dev/myserial}
+
+  yahboom-hardware:
+    profiles: ["hardware"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.hardware
+    container_name: jarvis-yahboom-hardware
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-20}
+      DISPLAY: ${DISPLAY:-:0}
+      QT_X11_NO_MITSHM: "1"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev/input:/dev/input
+    devices:
+      - /dev/video0:/dev/video0
+    command: ["/bin/bash", "/root/1.sh"]

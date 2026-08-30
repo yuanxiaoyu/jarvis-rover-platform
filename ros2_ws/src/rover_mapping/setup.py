@@ -1,6 +1,7 @@
 from setuptools import find_packages, setup
 
 package_name = "rover_mapping"
+_parameter_files = ["params/mapping.yaml", "params/slam_toolbox_online_async.yaml"]
 
 setup(
     name=package_name,
@@ -9,7 +10,7 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
-        (f"share/{package_name}/params", ["params/mapping.yaml"]),
+        (f"share/{package_name}/params", _parameter_files),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
