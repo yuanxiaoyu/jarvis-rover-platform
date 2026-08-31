@@ -64,3 +64,6 @@ A load request must contain `session_id`, `x`, `y`, `yaw`, and `match_type` (`2`
 - A pose graph and map are saved as versioned revisions under the configured session directory.
 - The 3D view is reconstructed from occupancy geometry and semantic-zone metadata.
 - `WS /ws/telemetry` remains a lightweight/mock telemetry stream until a dedicated ROS map stream is enabled.
+# Voice gateway
+
+The authenticated local gateway is available at `/api/v1/voice/assistant`, `/api/v1/voice/status`, and `/api/v1/voice/heartbeat`. It accepts only loopback requests with `X-Rover-Voice-Token`; AI configuration uses `ROVER_AI_BASE_URL`, `ROVER_AI_MODEL`, and protected `ROVER_AI_API_KEY`.
