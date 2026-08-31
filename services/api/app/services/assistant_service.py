@@ -65,6 +65,8 @@ class AssistantService:
             decision = await self._provider.decide(request.transcript, context, self._history.get(request.session_id, []))
         except AssistantProviderError as exc:
             return self._response(request, "unavailable", "助手服务暂时不可用。", error=("assistant_unavailable", exc.message, exc.recoverable))
+        except (RuntimeError, TimeoutError):
+            return self._response(request, "unavailable", "助手服务暂时不可用。", error=("assistant_unavailable", "助手服务暂时不可用", True))
         self._history.setdefault(request.session_id, []).extend([{"role": "user", "content": request.transcript}, {"role": "assistant", "content": decision.reply_text}])
         if decision.action is None:
             return self._response(request, "completed", decision.reply_text)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
+from urllib.parse import urlsplit
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -33,7 +33,8 @@ class VoiceConfig(BaseSettings):
         for name in ("capture_device", "playback_device", "wakeword_model", "asr_model_dir", "tts_model", "tts_config", "gateway_token"):
             if not getattr(self, name):
                 raise ValueError(f"{name} is required when voice is enabled")
-        if not self.gateway_url.startswith("http://127.0.0.1") and not self.gateway_url.startswith("http://[::1]"):
+        parsed = urlsplit(self.gateway_url)
+        if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "::1"}:
             raise ValueError("voice gateway must use loopback HTTP")
         for path_name in ("wakeword_model", "asr_model_dir", "tts_model", "tts_config"):
             if not Path(getattr(self, path_name)).exists():

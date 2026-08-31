@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import uuid
+import threading
 from collections import deque
 from .contracts import VoiceRuntime, VoiceState
 from .state_machine import StateMachine
@@ -13,6 +14,7 @@ class VoiceService:
         self.runtime = self.machine.runtime
         self.frames = deque(maxlen=750)
         self.running = False
+        self.stop_event = threading.Event()
 
     def enable(self):
         self.machine.transition(VoiceState.WAKE_LISTENING)
@@ -45,3 +47,10 @@ class VoiceService:
 
     def stop(self) -> None:
         self.running = False
+        self.stop_event.set()
+
+    def interrupt_speaking(self) -> None:
+        """Interrupt Piper playback and return to capture without queueing audio."""
+        self.stop_event.set()
+        if self.runtime.state == VoiceState.SPEAKING:
+            self.machine.transition(VoiceState.CAPTURING)
