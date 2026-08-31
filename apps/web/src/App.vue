@@ -9,6 +9,9 @@ import type { RoverSnapshot } from '@/types/contract'
 const snapshot = ref<RoverSnapshot>(createMockSnapshot())
 const aiCommand = ref('贾维斯，去东侧巡检区巡检，并把异常情况回传到控制台。')
 const sceneHost = ref<HTMLDivElement | null>(null)
+const ttsText = ref('')
+const ttsEnabled = ref(true)
+const ttsMessage = ref('')
 
 let scene: RoverScene | null = null
 let timer: number | null = null
@@ -69,6 +72,19 @@ function submitAiCommand(): void {
 
 async function refreshVoiceStatus(): Promise<void> {
   try { voiceStatus.value = await fetchVoiceStatus() } catch { voiceStatus.value = null }
+}
+
+async function speakText(): Promise<void> {
+  const text = ttsText.value.trim()
+  if (!text || !ttsEnabled.value) return
+  try {
+    const response = await fetch('/api/v1/voice/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+    if (!response.ok) throw new Error(`tts ${response.status}`)
+    ttsMessage.value = '已加入本地 Piper 播放队列'
+    ttsText.value = ''
+  } catch {
+    ttsMessage.value = '语音服务不可用，请检查宿主机状态'
+  }
 }
 
 function sendMission(action: 'start' | 'pause' | 'return' | 'clear'): void {
@@ -259,6 +275,10 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <p class="panel__copy">{{ voiceStatus?.last_error?.message ?? '状态由本机语音服务上报' }}</p>
+          <label class="voice-toggle"><input v-model="ttsEnabled" type="checkbox" /> 语音开关</label>
+          <textarea v-model="ttsText" rows="2" placeholder="输入文本，使用本地 Piper 播放" />
+          <button class="action action--wide" :disabled="!ttsEnabled || !ttsText.trim()" @click="speakText">生成 TTS 语音</button>
+          <p v-if="ttsMessage" class="panel__copy">{{ ttsMessage }}</p>
         </section>
 
         <section class="panel panel--compact">

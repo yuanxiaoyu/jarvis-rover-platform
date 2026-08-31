@@ -31,6 +31,16 @@ class GatewayClient:
         except httpx.HTTPError:
             return
 
+    async def next_tts(self) -> str | None:
+        try:
+            response = await self.client.get(f"{self.base_url}/tts/next", headers={"X-Rover-Voice-Token": self.token})
+            if response.status_code >= 400:
+                raise GatewayError("tts_unavailable")
+            value = response.json().get("text")
+            return value if isinstance(value, str) and value else None
+        except (httpx.HTTPError, ValueError, KeyError) as exc:
+            raise GatewayError("tts_unavailable") from exc
+
     async def close(self):
         if self._owns:
             await self.client.aclose()

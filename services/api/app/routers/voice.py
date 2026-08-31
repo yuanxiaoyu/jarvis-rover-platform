@@ -3,10 +3,15 @@ from __future__ import annotations
 import hmac
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.config import settings
+from pydantic import BaseModel, Field
 from app.models.assistant import VoiceAssistantRequest, VoiceAssistantResponse, VoiceStatus
 from app.services.voice_status import VoiceStatusStore
 
 router = APIRouter(prefix="/voice", tags=["voice"])
+
+
+class TtsRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
 
 
 def _store(request: Request) -> VoiceStatusStore:
@@ -42,6 +47,21 @@ async def voice_status(request: Request) -> VoiceStatus:
 async def heartbeat(request: Request, payload: VoiceStatus) -> VoiceStatus:
     _store(request).update(payload)
     return payload
+
+
+@router.post("/tts")
+async def enqueue_tts(request: Request, payload: TtsRequest) -> dict[str, object]:
+    store = _store(request)
+    status_snapshot = store.current()
+    if not status_snapshot.enabled or status_snapshot.state in {"assistant_unavailable", "audio_unavailable", "tts_error", "disabled"}:
+        raise HTTPException(status_code=503, detail="tts_unavailable")
+    store.enqueue_tts(payload.text)
+    return {"accepted": True, "queued": True}
+
+
+@router.get("/tts/next", dependencies=[Depends(_auth)])
+async def next_tts(request: Request) -> dict[str, str | None]:
+    return {"text": _store(request).pop_tts()}
 
 
 @router.post("/session", status_code=status.HTTP_410_GONE)
