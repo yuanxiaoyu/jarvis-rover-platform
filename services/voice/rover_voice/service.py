@@ -119,6 +119,8 @@ class VoiceService:
             self.runtime.turn_id = uuid.uuid4().hex
             self._transcript = result
             self._set_state(VoiceState.PROCESSING_ASSISTANT)
+            await self._heartbeat()
+            return
 
         if self.runtime.state != VoiceState.PROCESSING_ASSISTANT:
             return
@@ -149,7 +151,7 @@ class VoiceService:
         except Exception as exc:
             self._fail(VoiceState.TTS_ERROR, "tts_unavailable", exc)
             return
-        if self.running and not self.stop_event.is_set():
+        if not self.stop_event.is_set():
             self._set_state(VoiceState.CAPTURING)
             self._followup_until = time.monotonic() + getattr(self.config, "followup_seconds", 8.0)
         await self._heartbeat()
