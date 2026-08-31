@@ -1,5 +1,7 @@
 # 贾维斯小车控制台
 
+本地语音部署和故障行为见 [docs/voice-runtime-runbook.md](docs/voice-runtime-runbook.md)。宿主机服务使用 openWakeWord、sherpa-onnx 与 Piper，并通过受保护的 `ROVER_AI_API_KEY` 与 `ROVER_VOICE_GATEWAY_TOKEN` 配置运行。
+
 `Jarvis Rover Console` 是一套面向 Yahboom `MicroROS-Pi5` 小车的 `ROS2 + Docker + Web` 控制系统。
 
 本项目围绕 Yahboom 为 `MicroROS-Pi5` 平台公开的硬件能力和课程范围进行设计，核心前提包括：

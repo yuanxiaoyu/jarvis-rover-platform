@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { advanceMockRuntime, createMockSnapshot } from '@/data/mockWorld'
 import { RoverScene } from '@/lib/roverScene'
+import { fetchVoiceStatus } from '@/lib/voiceClient'
 import type { RoverSnapshot } from '@/types/contract'
 
 const snapshot = ref<RoverSnapshot>(createMockSnapshot())
@@ -12,6 +13,8 @@ const sceneHost = ref<HTMLDivElement | null>(null)
 let scene: RoverScene | null = null
 let timer: number | null = null
 let tick = 0
+let voiceTimer: number | null = null
+const voiceStatus = ref<Awaited<ReturnType<typeof fetchVoiceStatus>> | null>(null)
 
 const selectedZone = computed(
   () => snapshot.value.world.zones.find((zone) => zone.id === snapshot.value.runtime.selectedZoneId) ?? null,
@@ -64,12 +67,8 @@ function submitAiCommand(): void {
   updateStatusLine('AI 任务已进入队列，等待导航与感知链路接管')
 }
 
-function toggleVoice(): void {
-  snapshot.value.runtime.voice.listening = !snapshot.value.runtime.voice.listening
-  snapshot.value.runtime.voice.transcript = snapshot.value.runtime.voice.listening
-    ? '正在听取指令，请说“贾维斯”。'
-    : '语音待命中'
-  snapshot.value.runtime.voice.confidence = snapshot.value.runtime.voice.listening ? 0.91 : 0
+async function refreshVoiceStatus(): Promise<void> {
+  try { voiceStatus.value = await fetchVoiceStatus() } catch { voiceStatus.value = null }
 }
 
 function sendMission(action: 'start' | 'pause' | 'return' | 'clear'): void {
@@ -108,6 +107,8 @@ onMounted(() => {
   })
   scene.setWorld(snapshot.value.world)
   scene.setRuntime(snapshot.value.runtime)
+  refreshVoiceStatus()
+  voiceTimer = window.setInterval(refreshVoiceStatus, 5000)
 
   timer = window.setInterval(() => {
     tick += 1
@@ -117,6 +118,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (voiceTimer !== null) window.clearInterval(voiceTimer)
   if (timer) {
     window.clearInterval(timer)
   }
@@ -250,16 +252,13 @@ onBeforeUnmount(() => {
             <h3>语音链路</h3>
           </div>
           <div class="voice-state">
-            <span class="voice-lamp" :class="{ 'voice-lamp--live': snapshot.runtime.voice.listening }" />
+            <span class="voice-lamp" :class="{ 'voice-lamp--live': voiceStatus?.enabled }" />
             <div>
-              <strong>{{ snapshot.runtime.voice.wakeWordArmed ? '已武装唤醒词' : '唤醒词关闭' }}</strong>
-              <p>当前口令：贾维斯</p>
+              <strong>{{ voiceStatus ? voiceStatus.state : '语音状态未知' }}</strong>
+              <p>唤醒词：你好贾维斯</p>
             </div>
           </div>
-          <p class="panel__copy">{{ snapshot.runtime.voice.transcript }}</p>
-          <button class="action action--wide" @click="toggleVoice">
-            {{ snapshot.runtime.voice.listening ? '停止收音' : '开始语音会话' }}
-          </button>
+          <p class="panel__copy">{{ voiceStatus?.last_error?.message ?? '状态由本机语音服务上报' }}</p>
         </section>
 
         <section class="panel panel--compact">

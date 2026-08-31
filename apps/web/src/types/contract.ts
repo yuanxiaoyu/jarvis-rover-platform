@@ -79,6 +79,15 @@ export interface VoiceState {
   confidence: number
 }
 
+export type VoiceStatus = {
+  state: 'disabled' | 'wake_listening' | 'capturing' | 'processing_asr' | 'processing_assistant' | 'speaking' | 'audio_unavailable' | 'asr_error' | 'assistant_unavailable' | 'tts_error'
+  enabled: boolean
+  session_id?: string | null
+  turn_id?: string | null
+  last_error?: { code: string; message: string; recoverable: boolean } | null
+  component_latency_ms: Record<string, number | null>
+}
+
 export interface TaskItem {
   id: string
   title: string

@@ -1,56 +1,54 @@
-from datetime import datetime, timezone
-from uuid import uuid4
+from __future__ import annotations
 
-from fastapi import APIRouter
-
-from app.models.task import Task, TaskStatus, TaskType
-from app.models.voice import VoiceAck, VoiceCommand, VoiceSessionState
-from app.state import TASK_STATE, VOICE_STATE
+import hmac
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from app.config import settings
+from app.models.assistant import VoiceAssistantRequest, VoiceAssistantResponse, VoiceStatus
+from app.services.voice_status import VoiceStatusStore
 
 router = APIRouter(prefix="/voice", tags=["voice"])
 
 
-@router.post("/session", response_model=VoiceSessionState)
-def set_voice_session(action: dict[str, str]) -> VoiceSessionState:
-    next_action = action.get("action", "stop")
-    VOICE_STATE.listening = next_action == "start"
-    VOICE_STATE.transcript = "正在听取指令，请说“贾维斯”。" if VOICE_STATE.listening else "语音待命中"
-    return VOICE_STATE
+def _store(request: Request) -> VoiceStatusStore:
+    store = getattr(request.app.state, "voice_status_store", None)
+    if store is None:
+        store = VoiceStatusStore(settings.voice_status_stale_seconds)
+        request.app.state.voice_status_store = store
+    return store
 
 
-@router.post("/command", response_model=VoiceAck)
-def process_voice_command(command: VoiceCommand) -> VoiceAck:
-    normalized_intent = command.intent.lower().strip()
-    adapter = "mock"
+async def _auth(request: Request) -> None:
+    if request.client is None or request.client.host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=401, detail="voice gateway unauthorized")
+    configured = settings.voice_gateway_token.get_secret_value() if settings.voice_gateway_token else ""
+    if not configured or not hmac.compare_digest(request.headers.get("X-Rover-Voice-Token", ""), configured):
+        raise HTTPException(status_code=401, detail="voice gateway unauthorized")
 
-    if "sherpa" in command.transcript.lower():
-        adapter = "sherpa-onnx"
-        VOICE_STATE.adapter = adapter
 
-    VOICE_STATE.transcript = command.transcript
+@router.post("/assistant", response_model=VoiceAssistantResponse, dependencies=[Depends(_auth)])
+async def assistant(request: Request, payload: VoiceAssistantRequest) -> VoiceAssistantResponse:
+    service = getattr(request.app.state, "assistant_service", None)
+    if service is None:
+        raise HTTPException(status_code=503, detail="assistant_unavailable")
+    return await service.handle(payload)
 
-    if normalized_intent in {"navigate", "go_to_point"}:
-        now = datetime.now(timezone.utc)
-        TASK_STATE.append(
-            Task(
-                task_id=f"task-{uuid4().hex[:8]}",
-                type=TaskType.NAVIGATE,
-                status=TaskStatus.PENDING,
-                description=f"Created from voice transcript: {command.transcript}",
-                created_at=now,
-                updated_at=now,
-            )
-        )
-        return VoiceAck(
-            accepted=True,
-            message="Navigation task queued.",
-            intent=normalized_intent,
-            adapter=adapter,
-        )
 
-    return VoiceAck(
-        accepted=True,
-        message="Command received.",
-        intent=normalized_intent or "unknown",
-        adapter=adapter,
-    )
+@router.get("/status", response_model=VoiceStatus)
+async def voice_status(request: Request) -> VoiceStatus:
+    return _store(request).current()
+
+
+@router.post("/heartbeat", response_model=VoiceStatus, dependencies=[Depends(_auth)])
+async def heartbeat(request: Request, payload: VoiceStatus) -> VoiceStatus:
+    _store(request).update(payload)
+    return payload
+
+
+@router.post("/session", status_code=status.HTTP_410_GONE)
+async def legacy_session() -> None:
+    raise HTTPException(status_code=410, detail="legacy voice session endpoint removed")
+
+
+@router.post("/command", status_code=status.HTTP_410_GONE)
+async def legacy_command() -> None:
+    raise HTTPException(status_code=410, detail="legacy voice command endpoint removed")

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     voice_transcript_max_chars: int = Field(default=1000, ge=1)
     voice_confirmation_ttl_seconds: float = Field(default=15.0, gt=0)
     voice_followup_seconds: float = Field(default=8.0, gt=0)
+    voice_status_stale_seconds: float = Field(default=15.0, gt=0)
 
     model_config = SettingsConfigDict(env_prefix="ROVER_", env_file=".env", extra="ignore")
 
@@ -35,6 +36,8 @@ class Settings(BaseSettings):
             return
         if not self.ai_api_key:
             raise ValueError("ROVER_AI_API_KEY is required when ROVER_AI_ENABLED=true")
+        if self.voice_gateway_token and self.ai_api_key.get_secret_value() == self.voice_gateway_token.get_secret_value():
+            raise ValueError("ROVER_AI_API_KEY and ROVER_VOICE_GATEWAY_TOKEN must be different")
         if not self.ai_base_url.startswith(("http://", "https://")):
             raise ValueError("ROVER_AI_BASE_URL must use http or https")
         if self.ai_timeout_seconds <= 0 or self.ai_max_output_tokens < 1:

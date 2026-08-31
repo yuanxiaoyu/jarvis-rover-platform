@@ -1,0 +1,26 @@
+[Unit]
+Description=Jarvis Rover local voice assistant
+After=network-online.target rover-runtime.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rover
+Group=audio
+SupplementaryGroups=audio
+EnvironmentFile=-/etc/jarvis-rover/voice.env
+WorkingDirectory=@REPO_DIR@/services/voice
+ExecStart=@REPO_DIR@/.venv-voice/bin/python -m rover_voice.cli run
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/jarvis-rover/voice
+ReadOnlyPaths=@REPO_DIR@/models
+DeviceAllow=/dev/snd/*
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

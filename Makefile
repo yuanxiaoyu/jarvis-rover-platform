@@ -2,7 +2,7 @@ WEB_DIR := apps/web
 API_DIR := services/api
 ROS_DIR := ros2_ws
 
-.PHONY: web-install web-build api-install api-run docker-build docker-up ros-graph-check ros-baseline runtime-test runtime-prerequisites runtime-install runtime-uninstall runtime-smoke
+.PHONY: web-install web-build api-install api-run docker-build docker-up ros-graph-check ros-baseline runtime-test runtime-prerequisites runtime-install runtime-uninstall runtime-smoke voice-prerequisites voice-test voice-install voice-uninstall voice-audio-test
 
 web-install:
 	cd $(WEB_DIR) && npm install
@@ -43,3 +43,18 @@ runtime-uninstall:
 
 runtime-smoke:
 	bash scripts/real_machine_smoke_test.sh
+
+voice-prerequisites:
+	bash scripts/check_voice_prerequisites.sh
+
+voice-test:
+	cd services/voice && python3 -m pytest -q
+
+voice-install:
+	sudo bash scripts/install_rover_voice_service.sh --repo-dir "$$(pwd)"
+
+voice-uninstall:
+	sudo bash scripts/uninstall_rover_voice_service.sh
+
+voice-audio-test:
+	bash scripts/test_voice_audio.sh

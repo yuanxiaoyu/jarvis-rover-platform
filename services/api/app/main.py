@@ -11,6 +11,9 @@ from app.routers import api_router
 from app.services.mapping_backend import InMemoryMappingBackend, RosMappingBackend
 from app.services.ros_bridge import RosMappingBridge
 from app.services.telemetry import telemetry_stream
+from app.services.assistant_provider import OpenAICompatibleAssistantProvider
+from app.services.assistant_service import AssistantService
+from app.services.voice_status import VoiceStatusStore
 
 
 @asynccontextmanager
@@ -37,6 +40,25 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         else:
             backend = InMemoryMappingBackend()
         application.state.mapping_backend = backend
+    if getattr(application.state, "voice_status_store", None) is None:
+        application.state.voice_status_store = VoiceStatusStore(settings.voice_status_stale_seconds)
+    created_assistant = False
+    if settings.ai_enabled and getattr(application.state, "assistant_service", None) is None:
+        settings.validate_assistant_configuration()
+        provider = OpenAICompatibleAssistantProvider(
+            settings.ai_base_url,
+            settings.ai_api_key,
+            settings.ai_model,
+            settings.ai_timeout_seconds,
+            settings.ai_max_output_tokens,
+        )
+        application.state.assistant_service = AssistantService(
+            provider,
+            backend,
+            settings.voice_confirmation_ttl_seconds,
+            settings.voice_transcript_max_chars,
+        )
+        created_assistant = True
     try:
         yield
     finally:
@@ -44,6 +66,9 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             await backend.close()
             if getattr(application.state, "mapping_backend", None) is backend:
                 del application.state.mapping_backend
+        if created_assistant:
+            await application.state.assistant_service.close()
+            del application.state.assistant_service
 
 
 app = FastAPI(
