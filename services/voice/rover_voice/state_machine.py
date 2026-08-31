@@ -7,7 +7,7 @@ _ALLOWED = {
     VoiceState.DISABLED: {VoiceState.WAKE_LISTENING},
     VoiceState.WAKE_LISTENING: {VoiceState.CAPTURING, VoiceState.AUDIO_UNAVAILABLE, VoiceState.DISABLED},
     VoiceState.CAPTURING: {VoiceState.PROCESSING_ASR, VoiceState.WAKE_LISTENING, VoiceState.DISABLED},
-    VoiceState.PROCESSING_ASR: {VoiceState.PROCESSING_ASSISTANT, VoiceState.ASR_ERROR},
+    VoiceState.PROCESSING_ASR: {VoiceState.PROCESSING_ASSISTANT, VoiceState.ASR_ERROR, VoiceState.CAPTURING},
     VoiceState.PROCESSING_ASSISTANT: {VoiceState.SPEAKING, VoiceState.ASSISTANT_UNAVAILABLE},
     VoiceState.SPEAKING: {VoiceState.CAPTURING, VoiceState.WAKE_LISTENING, VoiceState.TTS_ERROR},
     VoiceState.AUDIO_UNAVAILABLE: {VoiceState.WAKE_LISTENING, VoiceState.DISABLED},

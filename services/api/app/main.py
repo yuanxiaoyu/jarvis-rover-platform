@@ -38,6 +38,8 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             else:
                 backend = RosMappingBackend(bridge)
         else:
+            if settings.ros_bridge_required:
+                raise RuntimeError("ROS bridge is required but disabled")
             backend = InMemoryMappingBackend()
         application.state.mapping_backend = backend
     if getattr(application.state, "voice_status_store", None) is None:

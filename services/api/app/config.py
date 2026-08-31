@@ -33,12 +33,12 @@ class Settings(BaseSettings):
 
     def validate_assistant_configuration(self) -> None:
         """Validate settings required when the remote assistant is enabled."""
+        if self.ai_api_key and self.voice_gateway_token and self.ai_api_key.get_secret_value() == self.voice_gateway_token.get_secret_value():
+            raise ValueError("ROVER_AI_API_KEY and ROVER_VOICE_GATEWAY_TOKEN must be different")
         if not self.ai_enabled:
             return
         if not self.ai_api_key:
             raise ValueError("ROVER_AI_API_KEY is required when ROVER_AI_ENABLED=true")
-        if self.voice_gateway_token and self.ai_api_key.get_secret_value() == self.voice_gateway_token.get_secret_value():
-            raise ValueError("ROVER_AI_API_KEY and ROVER_VOICE_GATEWAY_TOKEN must be different")
         if not self.ai_base_url.startswith(("http://", "https://")):
             raise ValueError("ROVER_AI_BASE_URL must use http or https")
         if self.ai_timeout_seconds <= 0 or self.ai_max_output_tokens < 1:

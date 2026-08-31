@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 from collections import deque
 
 from app.models.assistant import AssistantError, VoiceStatus
@@ -14,7 +15,7 @@ class VoiceStatusStore:
         self._tts_queue: deque[str] = deque(maxlen=1)
 
     def update(self, status: VoiceStatus) -> None:
-        self._status = status
+        self._status = status.model_copy(update={"received_at": datetime.now(timezone.utc)})
         self._received_at = time.monotonic()
 
     def current(self) -> VoiceStatus:

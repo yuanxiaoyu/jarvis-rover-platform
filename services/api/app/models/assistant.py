@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -121,6 +122,7 @@ class VoiceAssistantResponse(_AssistantModel):
 
 
 class VoiceStatus(_AssistantModel):
+    schema_version: Literal[1] = 1
     state: Literal[
         "disabled",
         "wake_listening",
@@ -138,6 +140,7 @@ class VoiceStatus(_AssistantModel):
     turn_id: str | None = None
     last_error: AssistantError | None = None
     component_latency_ms: dict[str, float | None] = Field(default_factory=dict)
+    received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("session_id", "turn_id")
     @classmethod

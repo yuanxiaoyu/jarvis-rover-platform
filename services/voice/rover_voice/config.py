@@ -23,6 +23,8 @@ class VoiceConfig(BaseSettings):
     vad_silence_ms: int = Field(default=700, gt=0, validation_alias="ROVER_VOICE_VAD_SILENCE_MS")
     wakeword_threshold: float = Field(default=0.5, ge=0, le=1, validation_alias="ROVER_WAKEWORD_THRESHOLD")
     wakeword_cooldown_seconds: float = Field(default=2.0, ge=0, validation_alias="ROVER_WAKEWORD_COOLDOWN_SECONDS")
+    min_confidence: float = Field(default=0.35, ge=0, le=1, validation_alias="ROVER_VOICE_MIN_CONFIDENCE")
+    max_audio_queue_frames: int = Field(default=750, ge=1, le=10000, validation_alias="ROVER_VOICE_MAX_AUDIO_QUEUE_FRAMES")
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     def validate_prerequisites(self) -> None:
@@ -39,6 +41,13 @@ class VoiceConfig(BaseSettings):
         for path_name in ("wakeword_model", "asr_model_dir", "tts_model", "tts_config"):
             if not Path(getattr(self, path_name)).exists():
                 raise ValueError(f"model path does not exist: {path_name}")
+        from .audio import probe_capture_device, probe_playback_device
+        capture_ok, capture_reason = probe_capture_device(self.capture_device)
+        if not capture_ok:
+            raise ValueError(capture_reason)
+        playback_ok, playback_reason = probe_playback_device(self.playback_device)
+        if not playback_ok:
+            raise ValueError(playback_reason)
 
 
 def load_config() -> VoiceConfig:

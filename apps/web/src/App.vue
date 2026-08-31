@@ -60,31 +60,8 @@ async function refreshVoiceStatus(): Promise<void> {
   try { voiceStatus.value = await fetchVoiceStatus() } catch { voiceStatus.value = null }
 }
 
-async function speakText(): Promise<void> {
-  const text = ttsText.value.trim()
-  if (!text || !ttsEnabled.value) return
-  try {
-    const assistantResponse = await fetch('/api/v1/voice/assistant', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ schema_version: 1, session_id: `web-${Date.now()}`, turn_id: `turn-${Date.now()}`, transcript: text, language: 'zh-CN', confidence: 1, source: 'local-sherpa-onnx' }),
-    })
-    if (!assistantResponse.ok) throw new Error(`assistant ${assistantResponse.status}`)
-    const assistant = await assistantResponse.json() as {
-      state?: string
-      reply_text?: string
-      error?: { message?: string }
-    }
-    if (assistant.state !== 'completed' || !assistant.reply_text || assistant.error) {
-      throw new Error(assistant.error?.message ?? 'assistant unavailable')
-    }
-    const response = await fetch('/api/v1/voice/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: assistant.reply_text }) })
-    if (!response.ok) throw new Error(`tts ${response.status}`)
-    ttsMessage.value = `大模型回复：${assistant.reply_text}`
-    ttsText.value = ''
-  } catch {
-    ttsMessage.value = '大模型或语音服务不可用，请检查 runtime 配置'
-  }
+function speakText(): void {
+  ttsMessage.value = '本地 Piper 由 rover-voice.service 管理；控制台不直接采集或播放音频。'
 }
 
 async function sendMission(action: 'start' | 'pause' | 'return' | 'clear'): Promise<void> {
@@ -250,8 +227,8 @@ onBeforeUnmount(() => {
           </div>
           <p class="panel__copy">{{ voiceStatus?.last_error?.message ?? '状态由本机语音服务上报' }}</p>
           <label class="voice-toggle"><input v-model="ttsEnabled" type="checkbox" /> 语音开关</label>
-          <textarea v-model="ttsText" rows="2" placeholder="输入文本，使用本地 Piper 播放" />
-          <button class="action action--wide" :disabled="!ttsEnabled || !ttsText.trim()" @click="speakText">生成 TTS 语音</button>
+          <textarea v-model="ttsText" rows="2" placeholder="由主机 rover-voice.service 进行本地 Piper 播放" disabled />
+          <button class="action action--wide" disabled @click="speakText">本地 Piper 由主机服务控制</button>
           <p v-if="ttsMessage" class="panel__copy">{{ ttsMessage }}</p>
         </section>
 

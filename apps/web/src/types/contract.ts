@@ -80,12 +80,14 @@ export interface VoiceState {
 }
 
 export type VoiceStatus = {
+  schema_version: 1
   state: 'disabled' | 'wake_listening' | 'capturing' | 'processing_asr' | 'processing_assistant' | 'speaking' | 'audio_unavailable' | 'asr_error' | 'assistant_unavailable' | 'tts_error'
   enabled: boolean
-  session_id?: string | null
-  turn_id?: string | null
-  last_error?: { code: string; message: string; recoverable: boolean } | null
+  session_id: string | null
+  turn_id: string | null
+  last_error: { code: string; message: string; recoverable: boolean } | null
   component_latency_ms: Record<string, number | null>
+  received_at: string
 }
 
 export interface TaskItem {

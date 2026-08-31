@@ -13,6 +13,22 @@ from app.models.assistant import AssistantDecision
 
 logger = logging.getLogger(__name__)
 
+_FORBIDDEN_DECISION_TEXT = (
+    "cmd_vel", "ros2", "ros service", "ros topic", "shell", "sudo",
+    "线速度", "角速度", "移动小车", "路径执行", "云台", "http://", "https://",
+)
+
+
+def _validate_decision_safety(decision: AssistantDecision) -> None:
+    """Reject model output that attempts to cross the local capability boundary."""
+    text = decision.reply_text.casefold()
+    if any(token in text for token in _FORBIDDEN_DECISION_TEXT):
+        raise ValueError("assistant response contains a forbidden control field")
+    if decision.action is not None and decision.action.type not in {
+        "mapping_start", "mapping_pause", "mapping_resume", "mapping_save", "mapping_stop",
+    }:
+        raise ValueError("assistant action is not allowlisted")
+
 
 class AssistantProviderError(RuntimeError):
     def __init__(self, code: str, message: str, recoverable: bool = True) -> None:
@@ -98,9 +114,6 @@ class OpenAICompatibleAssistantProvider:
                 try:
                     decision = AssistantDecision.model_validate_json(content)
                 except ValidationError:
-                    # Gateways may wrap text as {"message": ...}, or ignore the
-                    # JSON-only instruction. Keep both forms usable as text-only
-                    # replies while still rejecting malformed JSON objects.
                     try:
                         parsed = json.loads(content)
                     except json.JSONDecodeError:
@@ -111,16 +124,14 @@ class OpenAICompatibleAssistantProvider:
                         if isinstance(parsed, dict) and isinstance(parsed.get("message"), str):
                             decision = AssistantDecision(reply_text=parsed["message"], action=None, confidence=None)
                         elif isinstance(parsed, dict):
-                            # A gateway may truncate the optional text field and
-                            # return only an action. Preserve the validated action
-                            # while supplying a short, safe acknowledgement.
                             decision = AssistantDecision.model_validate(
                                 {**parsed, "reply_text": parsed.get("reply_text") or "好的。"}
                             )
                         else:
                             raise
+                _validate_decision_safety(decision)
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError, ValidationError) as exc:
-                logger.warning("assistant provider invalid response type=%s content=%r", type(exc).__name__, content[:500] if isinstance(content, str) else content)
+                logger.warning("assistant provider invalid response type=%s", type(exc).__name__)
                 raise AssistantProviderError("invalid_decision", "助手返回格式无效", False) from exc
             return decision
         raise AssistantProviderError("assistant_unavailable", "助手服务暂时不可用", True)

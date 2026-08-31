@@ -1,6 +1,6 @@
 [Unit]
 Description=Jarvis Rover local voice assistant
-After=network-online.target rover-runtime.service
+After=network-online.target jarvis-rover-runtime.service
 Wants=network-online.target
 
 [Service]

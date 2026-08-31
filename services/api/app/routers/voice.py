@@ -27,12 +27,7 @@ async def _auth(request: Request) -> None:
         raise HTTPException(status_code=401, detail="voice gateway unauthorized")
     configured = settings.voice_gateway_token.get_secret_value() if settings.voice_gateway_token else ""
     provided = request.headers.get("X-Rover-Voice-Token", "")
-    origin = request.headers.get("Origin", "")
-    # The local Vite console cannot expose the gateway token to browser JS. Permit
-    # same-machine dev proxy requests without a header; host voice clients still
-    # require the token and any wrong non-empty token is rejected.
-    browser_dev = not provided and origin in {"http://127.0.0.1:15173", "http://localhost:15173"}
-    if not configured or (not browser_dev and not hmac.compare_digest(provided, configured)):
+    if not configured or not hmac.compare_digest(provided, configured):
         raise HTTPException(status_code=401, detail="voice gateway unauthorized")
 
 

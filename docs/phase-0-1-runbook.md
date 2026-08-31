@@ -32,8 +32,8 @@ sh ~/ros2_humble.sh
 # 在厂商容器中只运行底盘、雷达、IMU、里程计和手柄。
 # 不要在该容器中启动 yahboomcar_bringup_launch.py、Cartographer 或 GMapping。
 
-# 宿主机项目目录
-cp .env.example .env
+# 宿主机项目目录；仅在不存在时创建，避免覆盖真机配置
+if [ ! -f .env ]; then cp .env.example .env; fi
 docker compose build rover-runtime
 docker compose up -d rover-runtime
 ```

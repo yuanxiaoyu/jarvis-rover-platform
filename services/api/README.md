@@ -49,8 +49,9 @@ If `ROVER_ROS_BRIDGE_REQUIRED=true`, API startup fails when `/mapping/command` c
 - `POST /api/v1/mapping/load`
 - `POST /api/v1/missions/navigate`
 - `POST /api/v1/missions/ai-command`
-- `POST /api/v1/voice/session`
-- `POST /api/v1/voice/command`
+- `POST /api/v1/voice/assistant` (loopback plus `X-Rover-Voice-Token`)
+- `GET /api/v1/voice/status`
+- `POST /api/v1/voice/heartbeat` (host service only)
 - `GET /api/v1/sensors`
 - `WS /ws/telemetry`
 
