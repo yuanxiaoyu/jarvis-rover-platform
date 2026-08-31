@@ -64,12 +64,20 @@ async function speakText(): Promise<void> {
   const text = ttsText.value.trim()
   if (!text || !ttsEnabled.value) return
   try {
-    const response = await fetch('/api/v1/voice/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+    const assistantResponse = await fetch('/api/v1/voice/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schema_version: 1, session_id: `web-${Date.now()}`, turn_id: `turn-${Date.now()}`, transcript: text, language: 'zh-CN', confidence: 1, source: 'local-sherpa-onnx' }),
+    })
+    if (!assistantResponse.ok) throw new Error(`assistant ${assistantResponse.status}`)
+    const assistant = await assistantResponse.json() as { reply_text?: string }
+    if (!assistant.reply_text) throw new Error('assistant returned no reply')
+    const response = await fetch('/api/v1/voice/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: assistant.reply_text }) })
     if (!response.ok) throw new Error(`tts ${response.status}`)
-    ttsMessage.value = '已加入本地 Piper 播放队列'
+    ttsMessage.value = `大模型回复：${assistant.reply_text}`
     ttsText.value = ''
   } catch {
-    ttsMessage.value = '语音服务不可用，请检查宿主机状态'
+    ttsMessage.value = '大模型或语音服务不可用，请检查 runtime 配置'
   }
 }
 
