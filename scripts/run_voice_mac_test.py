@@ -18,6 +18,7 @@ async def main() -> None:
     parser.add_argument("--model", default="models/tts/zh_CN-huayan-medium.onnx")
     parser.add_argument("--config", default="models/tts/zh_CN-huayan-medium.onnx.json")
     parser.add_argument("--audio-device-index", type=int, default=None)
+    parser.add_argument("--output-device", default="USB PnP Sound Device")
     args = parser.parse_args()
     headers = {"X-Rover-Voice-Token": args.token}
     async with httpx.AsyncClient(timeout=10) as client:
@@ -32,6 +33,8 @@ async def main() -> None:
                         wav = Path(temp_dir) / "reply.wav"
                         subprocess.run([".venv-voice/bin/piper", "-m", args.model, "-c", args.config, "-f", str(wav)], input=(text + "\n").encode(), check=True)
                         if args.audio_device_index is None:
+                            if args.output_device:
+                                subprocess.run(["SwitchAudioSource", "-s", args.output_device], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                             subprocess.run(["afplay", str(wav)], check=False)
                         else:
                             subprocess.run(["/opt/homebrew/bin/ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(wav), "-f", "audiotoolbox", "-audio_device_index", str(args.audio_device_index), "-"], check=False)
