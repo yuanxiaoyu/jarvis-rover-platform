@@ -22,3 +22,6 @@ coverage/
 .coverage
 .idea/
 .vscode/
+# External voice/SLAM model assets are provisioned on the target machine.
+models/*
+!models/.gitkeep
