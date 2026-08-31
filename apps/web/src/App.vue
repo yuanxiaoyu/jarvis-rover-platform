@@ -70,8 +70,14 @@ async function speakText(): Promise<void> {
       body: JSON.stringify({ schema_version: 1, session_id: `web-${Date.now()}`, turn_id: `turn-${Date.now()}`, transcript: text, language: 'zh-CN', confidence: 1, source: 'local-sherpa-onnx' }),
     })
     if (!assistantResponse.ok) throw new Error(`assistant ${assistantResponse.status}`)
-    const assistant = await assistantResponse.json() as { reply_text?: string }
-    if (!assistant.reply_text) throw new Error('assistant returned no reply')
+    const assistant = await assistantResponse.json() as {
+      state?: string
+      reply_text?: string
+      error?: { message?: string }
+    }
+    if (assistant.state !== 'completed' || !assistant.reply_text || assistant.error) {
+      throw new Error(assistant.error?.message ?? 'assistant unavailable')
+    }
     const response = await fetch('/api/v1/voice/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: assistant.reply_text }) })
     if (!response.ok) throw new Error(`tts ${response.status}`)
     ttsMessage.value = `大模型回复：${assistant.reply_text}`

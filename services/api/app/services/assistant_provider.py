@@ -122,16 +122,8 @@ class OpenAICompatibleAssistantProvider:
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError, ValidationError) as exc:
                 logger.warning("assistant provider invalid response type=%s content=%r", type(exc).__name__, content[:500] if isinstance(content, str) else content)
                 raise AssistantProviderError("invalid_decision", "助手返回格式无效", False) from exc
-            self._validate(decision)
             return decision
         raise AssistantProviderError("assistant_unavailable", "助手服务暂时不可用", True)
-
-    @staticmethod
-    def _validate(decision: AssistantDecision) -> None:
-        text = decision.reply_text.lower()
-        forbidden = ("cmd_vel", "ros2", "shell", "topic", "service", "云台", "移动", "路径")
-        if any(token in text for token in forbidden):
-            raise AssistantProviderError("invalid_decision", "助手返回包含不支持的控制指令", False)
 
     async def close(self) -> None:
         if self._owns_client:

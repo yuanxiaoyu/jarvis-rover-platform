@@ -103,3 +103,29 @@ def test_responses_completed_without_text_gets_safe_text_fallback():
         return decision.reply_text
 
     assert asyncio.run(run()) == "好的。"
+
+
+def test_capability_explanation_may_mention_restricted_capabilities():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "output_text": '{"reply_text":"我可以查看状态，也能执行建图，但不能控制移动和路径。","action":null}'
+            },
+        )
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1",
+            SecretStr("test-key"),
+            model="gpt-5.6-sol",
+            wire_api="responses",
+            transport=client,
+        )
+        decision = await provider.decide("你告诉我你能做什么", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert "不能控制移动和路径" in asyncio.run(run())
