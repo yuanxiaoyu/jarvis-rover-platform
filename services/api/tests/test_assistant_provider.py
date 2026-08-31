@@ -82,3 +82,24 @@ def test_responses_action_only_payload_gets_safe_text_fallback():
         return decision.reply_text
 
     assert asyncio.run(run()) == "好的。"
+
+
+def test_responses_completed_without_text_gets_safe_text_fallback():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "completed", "output": [{"type": "reasoning", "content": []}]})
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1",
+            SecretStr("test-key"),
+            model="gpt-5.6-sol",
+            wire_api="responses",
+            transport=client,
+        )
+        decision = await provider.decide("请回复", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "好的。"

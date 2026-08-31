@@ -73,15 +73,21 @@ class OpenAICompatibleAssistantProvider:
                 if self.wire_api == "responses":
                     content = body.get("output_text")
                     if not content:
-                        content = next(
-                            (
-                                item.get("text")
-                                for output in body.get("output", [])
-                                for item in output.get("content", [])
-                                if item.get("type") == "output_text" and item.get("text")
-                            ),
-                            None,
-                        )
+                        for output in body.get("output", []):
+                            if not isinstance(output, dict):
+                                continue
+                            items = [output] if output.get("text") or output.get("output_text") else output.get("content", [])
+                            if isinstance(items, dict):
+                                items = [items]
+                            for item in items:
+                                if isinstance(item, dict) and item.get("type", "output_text") == "output_text":
+                                    content = item.get("text") or item.get("output_text")
+                                    if content:
+                                        break
+                            if content:
+                                break
+                    if not content and body.get("status") == "completed":
+                        content = "好的。"
                 else:
                     content = body["choices"][0]["message"]["content"]
                 if not isinstance(content, str):
