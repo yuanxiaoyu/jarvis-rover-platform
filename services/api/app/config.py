@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     ai_enabled: bool = False
     ai_base_url: str = "https://gmn.chuangzuoli.com/v1"
     ai_model: str = "gpt-5.6"
+    ai_wire_api: str = "chat_completions"
     ai_api_key: SecretStr | None = None
     ai_timeout_seconds: float = Field(default=20.0, gt=0)
     ai_max_output_tokens: int = Field(default=512, ge=1)

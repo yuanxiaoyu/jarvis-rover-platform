@@ -51,6 +51,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             settings.ai_model,
             settings.ai_timeout_seconds,
             settings.ai_max_output_tokens,
+            wire_api=settings.ai_wire_api,
         )
         application.state.assistant_service = AssistantService(
             provider,
