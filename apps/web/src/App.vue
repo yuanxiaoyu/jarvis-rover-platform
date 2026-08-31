@@ -1,21 +1,19 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { advanceMockRuntime, createMockSnapshot } from '@/data/mockWorld'
+import { createInitialSnapshot } from '@/data/realSnapshot'
 import { RoverScene } from '@/lib/roverScene'
 import { fetchVoiceStatus } from '@/lib/voiceClient'
 import type { RoverSnapshot } from '@/types/contract'
 
-const snapshot = ref<RoverSnapshot>(createMockSnapshot())
-const aiCommand = ref('贾维斯，去东侧巡检区巡检，并把异常情况回传到控制台。')
+const snapshot = ref<RoverSnapshot>(createInitialSnapshot())
+const aiCommand = ref('')
 const sceneHost = ref<HTMLDivElement | null>(null)
 const ttsText = ref('')
 const ttsEnabled = ref(true)
 const ttsMessage = ref('')
 
 let scene: RoverScene | null = null
-let timer: number | null = null
-let tick = 0
 let voiceTimer: number | null = null
 const voiceStatus = ref<Awaited<ReturnType<typeof fetchVoiceStatus>> | null>(null)
 
@@ -50,24 +48,12 @@ function toggleWall(wallId: string): void {
   scene?.setRuntime(snapshot.value.runtime)
 }
 
-function submitAiCommand(): void {
+async function submitAiCommand(): Promise<void> {
   const prompt = aiCommand.value.trim()
   if (!prompt) {
     return
   }
-
-  const nextTask = {
-    id: `ai-task-${Date.now()}`,
-    title: prompt.length > 18 ? `${prompt.slice(0, 18)}...` : prompt,
-    status: 'queued' as const,
-    progressPct: 0,
-    etaSec: 300,
-  }
-
-  snapshot.value.runtime.tasks = [nextTask, ...snapshot.value.runtime.tasks].slice(0, 5)
-  snapshot.value.runtime.mission.mode = 'autonomy'
-  snapshot.value.runtime.mission.objective = prompt
-  updateStatusLine('AI 任务已进入队列，等待导航与感知链路接管')
+  updateStatusLine('AI 指令需要通过本地语音网关提交；当前浏览器不会伪造任务状态')
 }
 
 async function refreshVoiceStatus(): Promise<void> {
@@ -87,30 +73,13 @@ async function speakText(): Promise<void> {
   }
 }
 
-function sendMission(action: 'start' | 'pause' | 'return' | 'clear'): void {
-  if (action === 'start') {
-    snapshot.value.runtime.mission.mode = 'autonomy'
-    updateStatusLine('任务已启动，小车进入自主运行')
-    return
-  }
-
-  if (action === 'pause') {
-    snapshot.value.runtime.mission.mode = 'paused'
-    updateStatusLine('任务已暂停，保留当前位置和规划路径')
-    return
-  }
-
-  if (action === 'return') {
-    snapshot.value.runtime.mission.mode = 'returning'
-    snapshot.value.runtime.selectedZoneId = 'dock-west'
-    updateStatusLine('已触发返航回桩')
-    return
-  }
-
-  snapshot.value.runtime.tasks = snapshot.value.runtime.tasks.map((task) =>
-    task.status === 'blocked' ? { ...task, status: 'queued' } : task,
-  )
-  updateStatusLine('告警队列已清理')
+async function sendMission(action: 'start' | 'pause' | 'return' | 'clear'): Promise<void> {
+  const endpoint = action === 'start' ? '/api/v1/mapping/start' : action === 'pause' ? '/api/v1/mapping/pause' : action === 'clear' ? '/api/v1/mapping/stop' : ''
+  if (!endpoint) { updateStatusLine('返航能力未接入真实 runtime'); return }
+  try {
+    const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: action === 'start' ? JSON.stringify({ session_id: `web-${Date.now()}` }) : undefined })
+    updateStatusLine(response.ok ? 'runtime 已接收请求，等待真实状态更新' : `runtime 请求失败（${response.status}）`)
+  } catch { updateStatusLine('runtime 不可用') }
 }
 
 onMounted(() => {
@@ -126,19 +95,10 @@ onMounted(() => {
   refreshVoiceStatus()
   voiceTimer = window.setInterval(refreshVoiceStatus, 5000)
 
-  timer = window.setInterval(() => {
-    tick += 1
-    snapshot.value.runtime = advanceMockRuntime(snapshot.value.runtime, snapshot.value.world, tick)
-    scene?.setRuntime(snapshot.value.runtime)
-  }, 1200)
 })
 
 onBeforeUnmount(() => {
   if (voiceTimer !== null) window.clearInterval(voiceTimer)
-  if (timer) {
-    window.clearInterval(timer)
-  }
-
   scene?.destroy()
 })
 </script>
