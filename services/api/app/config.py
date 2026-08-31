@@ -1,3 +1,4 @@
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +15,30 @@ class Settings(BaseSettings):
     ros_command_service: str = "/mapping/command"
     mapping_session_dir: str = "/workspace/data/maps"
 
+    # Assistant configuration is disabled by default until a protected key is provisioned.
+    ai_enabled: bool = False
+    ai_base_url: str = "https://gmn.chuangzuoli.com/v1"
+    ai_model: str = "gpt-5.6"
+    ai_api_key: SecretStr | None = None
+    ai_timeout_seconds: float = Field(default=20.0, gt=0)
+    ai_max_output_tokens: int = Field(default=512, ge=1)
+    voice_gateway_token: SecretStr | None = None
+    voice_transcript_max_chars: int = Field(default=1000, ge=1)
+    voice_confirmation_ttl_seconds: float = Field(default=15.0, gt=0)
+    voice_followup_seconds: float = Field(default=8.0, gt=0)
+
     model_config = SettingsConfigDict(env_prefix="ROVER_", env_file=".env", extra="ignore")
+
+    def validate_assistant_configuration(self) -> None:
+        """Validate settings required when the remote assistant is enabled."""
+        if not self.ai_enabled:
+            return
+        if not self.ai_api_key:
+            raise ValueError("ROVER_AI_API_KEY is required when ROVER_AI_ENABLED=true")
+        if not self.ai_base_url.startswith(("http://", "https://")):
+            raise ValueError("ROVER_AI_BASE_URL must use http or https")
+        if self.ai_timeout_seconds <= 0 or self.ai_max_output_tokens < 1:
+            raise ValueError("assistant timeout and output limit must be positive")
 
 
 settings = Settings()
