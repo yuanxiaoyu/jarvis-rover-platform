@@ -8,6 +8,7 @@ services:
     network_mode: host
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-20}
+      FASTDDS_BUILTIN_TRANSPORTS: UDPv4
       ROVER_API_PORT: ${ROVER_API_PORT:-8001}
       ROVER_ROS_BRIDGE_ENABLED: ${ROVER_ROS_BRIDGE_ENABLED:-true}
       ROVER_MAPPING_SESSION_DIR: ${ROVER_MAPPING_SESSION_DIR:-/workspace/data/maps}
