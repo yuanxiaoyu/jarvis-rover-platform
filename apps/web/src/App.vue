@@ -11,6 +11,8 @@ interface RadarPoint { angle_rad: number; range_m: number; x_m: number; y_m: num
 interface RadarState { available: boolean; frame_id: string; timestamp: string; range_max_m: number; points: RadarPoint[]; error: string | null }
 interface CameraState { available: boolean; device: string; width?: number; height?: number; fps?: number; error?: string | null }
 interface GimbalState { available: boolean; pan_deg: number | null; tilt_deg: number | null; error: string | null }
+type GimbalAxis = 'pan_deg' | 'tilt_deg'
+type GimbalCommand = Partial<Record<GimbalAxis, number>>
 interface PlannedPath { waypoints: Array<{ x: number; y: number }>; length_m: number; message: string }
 type ZoneKind = 'semantic' | 'keepout' | 'slow' | 'virtual_wall'
 
@@ -58,6 +60,11 @@ const sceneHost = ref<HTMLDivElement | null>(null)
 let scene: RoverScene | null = null
 let refreshTimer: number | null = null
 let refreshInFlight = false
+let gimbalControlsTouched = false
+let gimbalRequestInFlight = false
+let gimbalSendTimer: number | null = null
+let gimbalLastSentAt = 0
+let gimbalPending: GimbalCommand = {}
 let sceneHasWorld = false
 let gridEtag: string | null = null
 let gridVersion: string | null = null
@@ -438,8 +445,12 @@ async function refresh(): Promise<void> {
     if (responses[3].status === 'fulfilled') { camera.value = responses[3].value; cameraFrameError.value = false }
     if (responses[4].status === 'fulfilled') {
       gimbal.value = responses[4].value
-      if (responses[4].value.pan_deg !== null) pan.value = responses[4].value.pan_deg
-      if (responses[4].value.tilt_deg !== null) tilt.value = responses[4].value.tilt_deg
+      // The hardware has no position feedback; these values are only the last
+      // command and must not overwrite a value the operator is currently setting.
+      if (!gimbalControlsTouched) {
+        if (responses[4].value.pan_deg !== null) pan.value = responses[4].value.pan_deg
+        if (responses[4].value.tilt_deg !== null) tilt.value = responses[4].value.tilt_deg
+      }
     }
     lastRefreshAt.value = new Date().toISOString()
     updateScene()
@@ -484,13 +495,39 @@ async function refreshOccupancyGrid(current: RealSnapshot): Promise<void> {
 
 function apiStateLabel(): string { return { loading: '连接中', online: '真实数据在线', stale: '数据已过期', unavailable: '数据不可用' }[apiState.value] }
 
-async function sendGimbal(): Promise<void> {
+function scheduleGimbalSend(immediate = false): void {
+  if (gimbalSendTimer !== null) window.clearTimeout(gimbalSendTimer)
+  const waitMs = immediate ? 0 : Math.max(0, 50 - (Date.now() - gimbalLastSentAt))
+  gimbalSendTimer = window.setTimeout(() => {
+    gimbalSendTimer = null
+    void flushGimbalCommands()
+  }, waitMs)
+}
+
+function queueGimbalCommand(axis: GimbalAxis, value: number, flush = false): void {
+  gimbalControlsTouched = true
+  gimbalPending = { ...gimbalPending, [axis]: value }
+  scheduleGimbalSend(flush)
+}
+
+async function flushGimbalCommands(): Promise<void> {
+  if (gimbalRequestInFlight) return
+  const command = gimbalPending
+  if (Object.keys(command).length === 0) return
+  gimbalPending = {}
+  gimbalRequestInFlight = true
+  gimbalLastSentAt = Date.now()
   try {
-    const response = await fetch(`${apiBaseUrl}/api/v1/gimbal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pan_deg: pan.value, tilt_deg: tilt.value }) })
+    const response = await fetch(`${apiBaseUrl}/api/v1/gimbal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command) })
     if (!response.ok) throw new Error(`云台命令失败 (${response.status})`)
     gimbal.value = await response.json() as GimbalState
   } catch (error) {
     gimbal.value = { ...gimbal.value, available: false, error: error instanceof Error ? error.message : '云台命令失败' }
+  } finally {
+    gimbalRequestInFlight = false
+    if (Object.keys(gimbalPending).length > 0 && gimbalSendTimer === null) {
+      scheduleGimbalSend()
+    }
   }
 }
 
@@ -520,7 +557,11 @@ watch(viewMode, () => {
   window.setTimeout(updateScene, 0)
 })
 onMounted(() => { void refresh(); refreshTimer = window.setInterval(() => void refresh(), 3000) })
-onBeforeUnmount(() => { if (refreshTimer !== null) window.clearInterval(refreshTimer); scene?.destroy() })
+onBeforeUnmount(() => {
+  if (refreshTimer !== null) window.clearInterval(refreshTimer)
+  if (gimbalSendTimer !== null) window.clearTimeout(gimbalSendTimer)
+  scene?.destroy()
+})
 </script>
 
 <template>
@@ -580,7 +621,7 @@ onBeforeUnmount(() => { if (refreshTimer !== null) window.clearInterval(refreshT
         </section>
       </section>
       <aside class="sidebar">
-        <section class="panel compact"><div class="panel-title"><span>云台</span><span class="availability" :class="{ online: gimbal.available }">{{ gimbal.available ? '控制链路在线' : '不可用' }}</span></div><div class="slider-row"><label>水平 <output>{{ pan }}°</output></label><input v-model.number="pan" type="range" min="-90" max="90" step="1" :disabled="!gimbal.available" /></div><div class="slider-row"><label>俯仰 <output>{{ tilt }}°</output></label><input v-model.number="tilt" type="range" min="-90" max="20" step="1" :disabled="!gimbal.available" /></div><button class="action-button" :disabled="!gimbal.available" @click="sendGimbal">发送角度</button><small class="muted">{{ gimbal.error || '/servo_s1 · /servo_s2 · 设备未提供位置回读' }}</small></section>
+        <section class="panel compact"><div class="panel-title"><span>云台</span><span class="availability" :class="{ online: gimbal.available }">{{ gimbal.available ? '控制链路在线' : '不可用' }}</span></div><div class="slider-row"><label>水平 <output>{{ pan }}°</output></label><input v-model.number="pan" type="range" min="-90" max="90" step="1" :disabled="!gimbal.available" @input="queueGimbalCommand('pan_deg', pan)" @change="queueGimbalCommand('pan_deg', pan, true)" /></div><div class="slider-row"><label>俯仰 <output>{{ tilt }}°</output></label><input v-model.number="tilt" type="range" min="-90" max="20" step="1" :disabled="!gimbal.available" @input="queueGimbalCommand('tilt_deg', tilt)" @change="queueGimbalCommand('tilt_deg', tilt, true)" /></div><small class="muted">{{ gimbal.error || '/servo_s1 · /servo_s2 · 设备未提供位置回读' }}</small></section>
         <section class="panel compact"><div class="panel-title"><span>AI 语音对话</span><span class="availability" :class="{ online: voice.enabled && !voice.lastError }">{{ voiceLabel }}</span></div><div class="voice-line"><span class="voice-ring" :class="{ listening: voice.state === 'wake_listening' || voice.state === 'capturing' }" /><div><b>说“贾维斯”唤醒</b><small>{{ voice.enabled ? '可闲聊、问答或查询小车 · 音频不上云' : '本地语音服务未启用 · 音频不上云' }} · 状态 {{ formatTime(voice.receivedAt) }}</small></div></div><div class="chat-log"><div v-for="(message, index) in chatMessages" :key="index" :class="['chat-message', message.role]">{{ message.text }}</div><small v-if="!chatMessages.length" class="muted">输入任意话题测试开放对话；语音由主机服务采集。</small></div><form class="chat-form" @submit.prevent="sendChat"><input v-model="chatInput" placeholder="和贾维斯聊点什么…" maxlength="1000" /><button aria-label="发送">↵</button></form></section>
         <section class="panel compact"><div class="panel-title"><span>传感器与位姿</span><span class="availability" :class="{ online: snapshot?.sensor.available }">{{ sensorLabel }}</span></div><div class="metrics"><div><small>电量</small><b>{{ snapshot?.sensor.batteryPercent ?? '—' }}{{ snapshot?.sensor.batteryPercent === null ? '' : '%' }}</b></div><div><small>雷达点</small><b>{{ radar.available ? radar.points.length : '—' }}</b></div><div><small>IMU 航向</small><b>{{ snapshot?.sensor.yawRad?.toFixed(2) ?? '—' }}</b></div><div><small>地图坐标</small><b>{{ snapshot?.robotPose.available ? `${snapshot.robotPose.x?.toFixed(2)}, ${snapshot.robotPose.y?.toFixed(2)}` : '—' }}</b></div></div><small class="muted">{{ snapshot?.sensor.error || radar.error || snapshot?.robotPose.error || '等待传感器数据' }}</small></section>
         <section class="panel compact"><div class="panel-title"><span>任务与数据源</span><span class="availability" :class="{ online: apiState === 'online' }">{{ apiStateLabel() }}</span></div><div v-if="snapshot?.tasks.length" class="task-list"><div v-for="task in snapshot.tasks" :key="task.id" class="task-row"><b>{{ task.type }}</b><span>{{ task.status }}</span></div></div><small v-else class="muted">暂无活动任务</small><div class="source-list"><div><span class="source-dot" :class="{ online: snapshot }" />API</div><div><span class="source-dot" :class="{ online: radar.available }" />MS200 雷达</div><div><span class="source-dot" :class="{ online: camera.available && !cameraFrameError }" />V4L2 摄像头</div><div><span class="source-dot" :class="{ online: voice.enabled }" />本地语音服务</div><div><span class="source-dot" :class="{ online: snapshot?.mapAvailable }" />SLAM 地图</div></div></section>
