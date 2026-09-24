@@ -13,6 +13,7 @@ setup(
         (f"share/{package_name}/launch", ["launch/navigation.launch.py"]),
     ],
     install_requires=["setuptools"],
+    tests_require=["pytest>=8.2,<9"],
     zip_safe=True,
     maintainer="Rover Dev",
     maintainer_email="dev@rover.local",

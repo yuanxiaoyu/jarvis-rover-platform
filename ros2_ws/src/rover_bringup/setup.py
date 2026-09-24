@@ -18,7 +18,7 @@ setup(
     maintainer_email="dev@rover.local",
     description="Bringup package for rover stack orchestration.",
     license="Apache-2.0",
-    tests_require=["pytest"],
+    tests_require=["pytest>=8.2,<9"],
     entry_points={
         "console_scripts": [
             "bringup_node = rover_bringup.bringup_node:main",

@@ -43,6 +43,9 @@ COPY services/api /workspace/services/api
 # checkout. Ubuntu's packaged build frontend may not expose PEP 660, so an
 # editable install prevents the API container from ever starting.
 RUN python3 -m pip install --no-cache-dir /workspace/services/api
+# The API's AnyIO pytest plugin requires a newer pytest than Ubuntu 22.04
+# provides, while ROS Humble's launch_testing plugins are not pytest 9 compatible.
+RUN python3 -m pip install --no-cache-dir "pytest>=8.2,<9"
 
 COPY ros2_ws /workspace/ros2_ws
 RUN bash -lc "source /opt/ros/humble/setup.bash && cd /workspace/ros2_ws && colcon build --symlink-install"

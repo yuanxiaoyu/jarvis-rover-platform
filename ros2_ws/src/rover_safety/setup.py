@@ -12,6 +12,7 @@ setup(
         (f"share/{package_name}/params", ["params/safety.yaml"]),
     ],
     install_requires=["setuptools"],
+    tests_require=["pytest>=8.2,<9"],
     zip_safe=True,
     maintainer="Rover Dev",
     maintainer_email="dev@rover.local",
