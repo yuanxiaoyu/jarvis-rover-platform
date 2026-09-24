@@ -45,7 +45,13 @@ class FakeRuntime:
         return MappingStatus(state=MappingState.MAPPING, ready=True, motion_allowed=True)
 
     def robot_pose(self):
-        return RobotPoseState(available=True, x=1.0, y=2.0, yaw_rad=0.3)
+        return RobotPoseState(
+            available=True,
+            x=1.0,
+            y=2.0,
+            yaw_rad=0.3,
+            linear_velocity_mps=0.25,
+        )
 
     def sensor_snapshot(self):
         return SensorSnapshot(
@@ -92,6 +98,21 @@ def test_system_snapshot_uses_real_map_pose_and_mapping_state(tmp_path):
     assert payload["map"]["occupancy"]["data"] is None
     assert payload["robot_pose"]["x"] == 1.0
     assert payload["mapping"]["state"] == "mapping"
+
+
+def test_telemetry_websocket_streams_injected_runtime_state(tmp_path):
+    with live_client(tmp_path) as client:
+        with client.websocket_connect("/ws/telemetry") as websocket:
+            telemetry = websocket.receive_json()
+            sensors = websocket.receive_json()
+            radar = websocket.receive_json()
+
+    assert telemetry["type"] == "robot.telemetry"
+    assert telemetry["data"]["pose"] == {"x": 1.0, "y": 2.0}
+    assert telemetry["data"]["speed_mps"] == pytest.approx(0.25)
+    assert telemetry["data"]["sensor"]["available"] is True
+    assert sensors["type"] == "sensor.snapshot"
+    assert radar["type"] == "lidar.scan"
 
 
 def test_grid_endpoint_transmits_compressed_signed_occupancy_data(tmp_path):
