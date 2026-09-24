@@ -1,2 +1,2 @@
-"""Service helpers for API mock behavior."""
+"""Service helpers for the rover API."""
 

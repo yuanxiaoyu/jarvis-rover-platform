@@ -1,6 +1,6 @@
 /**:
   ros__parameters:
     planner_mode: structured_intent
-    api_base_url: http://127.0.0.1:8000
+    api_base_url: http://127.0.0.1:8001
     allow_browser_commands: true
     require_safe_zone_validation: true

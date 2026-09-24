@@ -6,40 +6,39 @@ services:
     container_name: jarvis-rover-runtime
     restart: unless-stopped
     network_mode: host
-    privileged: true
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-20}
-      ROVER_TELEMETRY_INTERVAL_SECONDS: ${ROVER_TELEMETRY_INTERVAL_SECONDS:-1.0}
+      ROVER_API_PORT: ${ROVER_API_PORT:-8001}
       ROVER_ROS_BRIDGE_ENABLED: ${ROVER_ROS_BRIDGE_ENABLED:-true}
-      ROVER_ROS_BRIDGE_REQUIRED: ${ROVER_ROS_BRIDGE_REQUIRED:-true}
-      ROVER_ROS_SERVICE_TIMEOUT_SECONDS: ${ROVER_ROS_SERVICE_TIMEOUT_SECONDS:-10.0}
-      ROVER_ROS_STATUS_TIMEOUT_SECONDS: ${ROVER_ROS_STATUS_TIMEOUT_SECONDS:-2.0}
       ROVER_MAPPING_SESSION_DIR: ${ROVER_MAPPING_SESSION_DIR:-/workspace/data/maps}
-      ROVER_MAPPING_STARTUP_TIMEOUT_SECONDS: ${ROVER_MAPPING_STARTUP_TIMEOUT_SECONDS:-60}
-      ROVER_RUNTIME_EVIDENCE_DIR: ${ROVER_RUNTIME_EVIDENCE_DIR:-/workspace/data/evidence}
-      ROVER_SLAM_PARAMS_FILE: ${ROVER_SLAM_PARAMS_FILE:-}
-      ROVER_ENABLE_WAKE_WORD: ${ROVER_ENABLE_WAKE_WORD:-false}
-      ROVER_ENABLE_ASR: ${ROVER_ENABLE_ASR:-false}
-      ROVER_ENABLE_TTS: ${ROVER_ENABLE_TTS:-false}
-      ROVER_CAMERA_STREAM_MODE: ${ROVER_CAMERA_STREAM_MODE:-mjpeg}
-      ROVER_TELEMETRY_HZ: ${ROVER_TELEMETRY_HZ:-2}
-      ROVER_LIDAR_DOWNSAMPLE: ${ROVER_LIDAR_DOWNSAMPLE:-1}
+      ROVER_CAMERA_WIDTH: ${ROVER_CAMERA_WIDTH:-1280}
+      ROVER_CAMERA_HEIGHT: ${ROVER_CAMERA_HEIGHT:-720}
+      ROVER_CAMERA_FPS: ${ROVER_CAMERA_FPS:-60}
+      ROVER_TELEMETRY_INTERVAL_SECONDS: ${ROVER_TELEMETRY_INTERVAL_SECONDS:-1.0}
+      ROVER_AI_ENABLED: ${ROVER_AI_ENABLED:-false}
+      ROVER_AI_BASE_URL: ${ROVER_AI_BASE_URL:-https://totokens.cc/v1}
+      ROVER_AI_MODEL: ${ROVER_AI_MODEL:-gpt-5.6-sol}
+      ROVER_AI_WIRE_API: ${ROVER_AI_WIRE_API:-chat_completions}
+      ROVER_AI_API_KEY: ${ROVER_AI_API_KEY:-}
+      ROVER_AI_TIMEOUT_SECONDS: ${ROVER_AI_TIMEOUT_SECONDS:-20}
+      ROVER_AI_MAX_OUTPUT_TOKENS: ${ROVER_AI_MAX_OUTPUT_TOKENS:-512}
+      ROVER_VOICE_GATEWAY_TOKEN: ${ROVER_VOICE_GATEWAY_TOKEN:-}
+      ROVER_VOICE_STATUS_STALE_SECONDS: ${ROVER_VOICE_STATUS_STALE_SECONDS:-15}
+      JARVIS_ENABLE_WAKE_WORD: ${JARVIS_ENABLE_WAKE_WORD:-false}
+      JARVIS_ENABLE_ASR: ${JARVIS_ENABLE_ASR:-false}
+      JARVIS_ENABLE_TTS: ${JARVIS_ENABLE_TTS:-false}
+    devices:
+      - ${ROVER_CAMERA_DEVICE:-/dev/video0}:${ROVER_CAMERA_DEVICE:-/dev/video0}
     volumes:
-      - ./models:/workspace/models
+      - ./models:/workspace/models:ro
       - ./data:/workspace/data
-    command: ["runtime"]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+    command: ["api"]
 
   micro-ros-agent:
-    profiles: ["micro-ros-agent"]
     image: microros/micro-ros-agent:humble
     container_name: jarvis-micro-ros-agent
     restart: unless-stopped
+    profiles: [micro-ros-agent]
     network_mode: host
     command:
       [
@@ -51,23 +50,3 @@ services:
       ]
     devices:
       - ${MICROROS_SERIAL_DEVICE:-/dev/myserial}:${MICROROS_SERIAL_DEVICE:-/dev/myserial}
-
-  yahboom-hardware:
-    profiles: ["hardware"]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.hardware
-    container_name: jarvis-yahboom-hardware
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    environment:
-      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-20}
-      DISPLAY: ${DISPLAY:-:0}
-      QT_X11_NO_MITSHM: "1"
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /dev/input:/dev/input
-    devices:
-      - /dev/video0:/dev/video0
-    command: ["/bin/bash", "/root/1.sh"]

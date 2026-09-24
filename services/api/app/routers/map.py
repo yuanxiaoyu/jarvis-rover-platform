@@ -1,27 +1,40 @@
-from datetime import datetime, timezone
+import zlib
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.models.map import MapModel
-from app.state import MAP_STATE
 
 router = APIRouter(prefix="/map", tags=["map"])
 
 
 @router.get("", response_model=MapModel)
-def get_map() -> MapModel:
-    return MAP_STATE
+def get_map(request: Request) -> MapModel:
+    runtime = getattr(request.app.state, "ros_runtime", None)
+    if runtime is None:
+        return MapModel()
+    return runtime.map_snapshot(include_data=False)
 
 
-@router.put("", response_model=MapModel)
-def update_map(map_payload: MapModel) -> MapModel:
-    map_payload.updated_at = datetime.now(timezone.utc)
-    MAP_STATE.map_id = map_payload.map_id
-    MAP_STATE.name = map_payload.name
-    MAP_STATE.source = map_payload.source
-    MAP_STATE.occupancy = map_payload.occupancy
-    MAP_STATE.reconstruction_3d_enabled = map_payload.reconstruction_3d_enabled
-    MAP_STATE.reconstruction_layers = map_payload.reconstruction_layers
-    MAP_STATE.updated_at = map_payload.updated_at
-    return MAP_STATE
-
+@router.get("/grid")
+def get_map_grid(request: Request) -> Response:
+    runtime = getattr(request.app.state, "ros_runtime", None)
+    if runtime is None:
+        raise HTTPException(status_code=503, detail="ROS map source is unavailable")
+    grid = runtime.map_snapshot()
+    data = grid.occupancy.data
+    if not grid.available or data is None:
+        raise HTTPException(status_code=503, detail="SLAM OccupancyGrid is unavailable")
+    etag = f'"{grid.updated_at.isoformat()}"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
+    compressed = zlib.compress(bytes(value & 0xFF for value in data), level=3)
+    return Response(
+        content=compressed,
+        media_type="application/vnd.jarvis.occupancy-grid+deflate",
+        headers={
+            "Cache-Control": "no-cache",
+            "ETag": etag,
+            "X-Grid-Width": str(grid.occupancy.width_cells),
+            "X-Grid-Height": str(grid.occupancy.height_cells),
+        },
+    )

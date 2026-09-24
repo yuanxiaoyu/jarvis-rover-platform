@@ -1,13 +1,13 @@
-# “你好贾维斯”本地语音助手集成设计
+# “贾维斯”本地语音助手集成设计
 
 - 日期：2026-08-30
 - 状态：设计已确认，待实施计划审阅
-- 范围：USB 麦克风/声卡、离线唤醒、离线中文 ASR、GPT-5.6 对话、本地 Piper TTS、受控建图操作
+- 范围：USB 麦克风/声卡、离线唤醒、离线中文 ASR、GPT-5.6 对话、本地 Pocket TTS、受控建图操作
 - 相关运行时：Raspberry Pi 5、ROS 2 Humble、`rover-runtime`、FastAPI、Vue、systemd
 
 ## 1. 背景
 
-设备已增加 USB 麦克风和 USB 声卡。目标是在小车上通过呼叫“你好贾维斯”唤醒语音对话：唤醒检测、语音识别和语音合成在本地完成；识别后的文本通过配置的 OpenAI-compatible API 发送给 GPT-5.6；GPT 回复文本后由本地 Piper 合成并通过 USB 声卡播放。
+设备已增加 USB 麦克风和 USB 声卡。目标是在小车上通过呼叫“贾维斯”唤醒语音对话：唤醒检测、语音识别和语音合成在本地完成；识别后的文本通过配置的 OpenAI-compatible API 发送给 GPT-5.6；GPT 回复文本后由本地 Pocket TTS 合成并通过 USB 声卡播放。会话也支持普通闲聊、知识问答和趣味对话，不限于小车动作。
 
 用户提供的模型接口配置为：
 
@@ -26,9 +26,9 @@
 
 1. 使用 OpenAI-compatible API 调用 GPT-5.6。
 2. 模型 ID 为 `gpt-5.6`，endpoint/base URL 由配置提供，不写死完整路径。
-3. 唤醒词为“你好贾维斯”，使用离线 `openWakeWord`。
+3. 唤醒词为“贾维斯”，使用离线 `openWakeWord`。
 4. 唤醒前后的音频都不上传云端；唤醒后的音频由本地 sherpa-onnx 完成 VAD/中文 ASR。
-5. TTS 使用本地 Piper，通过 USB 声卡播放。
+5. TTS 使用本地 Pocket TTS，通过 USB 声卡播放。
 6. 采用连续短会话：唤醒一次后允许约 8 秒继续追问；TTS 播放期间可被用户讲话打断；无新语音后回到唤醒监听。
 7. 语音服务运行在宿主机独立 `rover-voice.service`，直接访问 USB 音频设备。
 8. GPT 调用和机器人能力编排留在 `rover-runtime` 的 FastAPI 内部 AI/voice gateway。
@@ -41,11 +41,11 @@
 
 完成后，用户能够：
 
-- 对着 USB 麦克风说“你好贾维斯”唤醒助手。
+- 对着 USB 麦克风说“贾维斯”唤醒助手。
 - 在本地完成中文语音检测和识别，不产生云端音频上传。
 - 询问真实 mapping、雷达、位姿和数据源状态。
 - 通过“开始/暂停/恢复/保存/停止建图”得到确认提示，并在明确确认后调用现有 mapping API/backend。
-- 听到 GPT 文本经 Piper 在本地合成的中文语音。
+- 听到 GPT 文本经 Pocket TTS 在本地合成的语音；中文播报只有在固定 checkpoint 和 voice state 通过普通话发音验收后才可宣称可用。
 - 在 TTS 播放时打断并继续说话。
 - 在 GPT endpoint 断网时仍能唤醒、ASR 和本地提示，但明确报告云端助手不可用。
 - 在 Web 控制台看到语音服务、当前会话、组件健康和错误状态。
@@ -61,7 +61,7 @@
 - 云台控制和摄像头移动。
 - AI 模型配置 UI、密钥管理 UI 或任意模型供应商切换 UI。
 - 长期持久化语音转录和完整对话归档。
-- 自动下载未知的 wake word、ASR 或 Piper 模型。
+- 自动下载未知的 wake word、ASR 或 Pocket TTS checkpoint/voice 资产。
 - 让 `rover_voice_bridge` ROS 节点持有外部 API key。
 - 因语音服务不可用而阻止 mapping、safety、systemd runtime 或 Web 控制台启动。
 
@@ -75,11 +75,11 @@ USB microphone
       ▼
 rover-voice.service (host)
   ├─ ALSA audio input
-  ├─ openWakeWord: 你好贾维斯
+  ├─ openWakeWord: 贾维斯
   ├─ sherpa-onnx VAD
   ├─ sherpa-onnx Chinese ASR
   ├─ localhost voice gateway client
-  ├─ Piper local TTS
+  ├─ Pocket TTS
   └─ ALSA USB playback
              │ transcript only, loopback + token
              ▼
@@ -126,7 +126,7 @@ DISABLED
   │ enabled and prerequisites valid
   ▼
 WAKE_LISTENING
-  │ openWakeWord detects 你好贾维斯
+  │ openWakeWord detects 贾维斯
   ▼
 CAPTURING
   │ VAD detects end of speech or max duration
@@ -164,7 +164,7 @@ TTS_ERROR
 - GPT 并发上限 1。
 - GPT 请求超时 20 秒。
 - 单次回复最大 512 tokens 或配置的等价字符数。
-- Piper 播放队列最多一条，不能无限积累。
+- Pocket TTS 播放队列最多一条，不能无限积累。
 - 音频缓冲区有界，禁止把麦克风帧无限放入内存。
 - 低资源时先降级 TTS、摄像头和其他非关键功能，不得降级 safety。
 
@@ -185,14 +185,14 @@ ALSA `plug` 层可以将 USB 设备支持的其他格式转换为该格式。ope
 ### 7.2 唤醒词
 
 - 引擎：离线 `openWakeWord`。
-- 关键词：`你好贾维斯`。
+- 关键词：`贾维斯`。
 - 模型文件由部署人员提供并显式配置，例如 `ROVER_WAKEWORD_MODEL`。
 - 模型文件、来源、许可证和 SHA-256 记录在部署资产清单中。
 - 缺少模型、不可读、格式不匹配或加载失败时，服务不进入监听状态。
 - 唤醒前音频只存在于处理缓冲区，不写临时音频文件，不发送 HTTP。
 - 需要配置阈值、冷却时间和重复触发抑制，默认不能通过代码写死。
 
-本仓库不提交“你好贾维斯”模型二进制，也不自动下载未知模型。没有模型时，正确状态是 unavailable/error，而不是使用普通词模型冒充。
+本仓库不提交“贾维斯”模型二进制，也不自动下载未知模型。没有模型时，正确状态是 unavailable/error，而不是使用普通词模型冒充。
 
 ### 7.3 VAD 和 ASR
 
@@ -201,19 +201,21 @@ ALSA `plug` 层可以将 USB 设备支持的其他格式转换为该格式。ope
 - ASR 输入来自有界内存缓冲，不落盘。
 - ASR 结果包含 `language`、`confidence`、`duration_ms` 和 `source=local-sherpa-onnx`。
 - 空转录、低于配置置信度、超时或模型错误不会调用 GPT。
-- 本地提示语由 Piper 播放，例如“没有听清，请再说一次”。
+- 本地提示语由 Pocket TTS 播放，例如“没有听清，请再说一次”。
 - 既有 `voice_bridge.yaml` 的 sherpa model directory 约定可作为参考，但宿主机 voice service 使用独立配置，不把 API key 或外部 provider 放入 ROS YAML。
 
 ### 7.4 TTS 和播放
 
-- 引擎：本地 Piper。
-- 输入：gateway 返回的 `reply_text`。
-- 输出：PCM/WAV 经配置的 ALSA playback device 播放。
-- TTS 模型由 `ROVER_TTS_MODEL`、`ROVER_TTS_CONFIG` 显式指定。
-- 模型缺失、不可读、合成失败或播放设备不存在时，报告 `tts_error`，不生成静态或模拟音频。
+- 引擎：宿主机本地 `pocket-tts` Python 包及其固定版本的 Pocket TTS checkpoint。
+- 输入：gateway 返回的 `reply_text`，只接受经过长度限制的文本，不接受模型或 voice 参数覆盖。
+- 输出：Pocket TTS 或中文 sherpa VITS 返回的音频 tensor/PCM；由 voice service 转换为有界的 PCM，经配置的 ALSA playback device 播放。Pocket TTS 使用 `generate_audio_stream`、sherpa VITS 使用生成回调，首个音频块就绪后写入同一个 `aplay` 流，不等待整段音频生成。模型采样率（通常为 24 kHz）与声卡采样率之间只允许使用显式配置的 ALSA `plug` 或一次连续的受控重采样。
+- 模型 checkpoint 和 voice state/reference voice 由 `ROVER_TTS_MODEL_DIR`、`ROVER_TTS_CONFIG`、`ROVER_TTS_CHECKPOINT`、`ROVER_TTS_VOICE_STATE` 显式指定；Pocket TTS config 和 tokenizer 必须引用本地路径，运行时不访问 Hugging Face 或其他网络源，不自动下载模型、voice 或依赖。
+- 优先使用预计算的本地 voice state；reference WAV 只在人工授权的安装/预计算步骤中读取，不作为运行时网络资源或默认持久化的原始语音输入。
+- Pocket TTS 上游发布版本的语言覆盖必须在部署清单中记录。当前产品要求中文播报，必须用固定 checkpoint 和 voice state 通过普通话发音验收；voice cloning 本身不能视为已获得中文模型支持。验收不通过时报告 `tts_error`/`unavailable`，不得静默切换其他引擎或伪造成功。
+- 模型、checkpoint、voice state 缺失、不可读、加载失败、合成失败或播放设备不存在时，报告 `tts_error`，不生成静态或模拟音频。
 - 只保留当前要播放的一条回复；新回复或打断会清空未播放队列。
-- 播放期间启用低成本 VAD，检测到用户讲话即停止 Piper 子进程/播放流并进入 `CAPTURING`。
-- Piper 运行和音频播放均在宿主机，不需要把 `/dev/snd` 暴露给 `rover-runtime` 容器。
+- 播放期间启用低成本 VAD，检测到用户讲话即停止 Pocket TTS worker/播放流并进入 `CAPTURING`。
+- Pocket TTS 运行和音频播放均在宿主机，不需要把 `/dev/snd` 暴露给 `rover-runtime` 容器。
 
 ## 8. 设备和模型配置
 
@@ -243,7 +245,7 @@ ROVER_VOICE_PLAYBACK_DEVICE=plughw:CARD=<stable-card-name>,DEV=0
 ```text
 /opt/jarvis-rover/models/
 ├── wakeword/
-│   └── nihao_javis.onnx
+│   └── javis.onnx
 ├── asr/
 │   ├── encoder...
 │   ├── decoder...
@@ -251,8 +253,11 @@ ROVER_VOICE_PLAYBACK_DEVICE=plughw:CARD=<stable-card-name>,DEV=0
 │   ├── tokens.txt
 │   └── model-config...
 └── tts/
-    ├── zh_CN-*.onnx
-    └── zh_CN-*.onnx.json
+    └── pocket-tts/
+        ├── model.safetensors
+        ├── config.yaml
+        └── voices/
+            └── jarvis.safetensors
 ```
 
 实际文件名由环境配置指定。安装前检查文件存在、可读、格式和许可证，不自动从不可信地址下载或执行模型安装。
@@ -272,10 +277,14 @@ ROVER_AI_TIMEOUT_SECONDS=20
 ROVER_AI_MAX_OUTPUT_TOKENS=512
 ROVER_VOICE_GATEWAY_TOKEN=<different-secret>
 ROVER_VOICE_MODEL_DIR=/opt/jarvis-rover/models
-ROVER_WAKEWORD_MODEL=/opt/jarvis-rover/models/wakeword/nihao_javis.onnx
+ROVER_WAKEWORD_PHRASE=贾维斯
+ROVER_WAKEWORD_MODEL=/opt/jarvis-rover/models/wakeword/javis.onnx
 ROVER_ASR_MODEL_DIR=/opt/jarvis-rover/models/asr
-ROVER_TTS_MODEL=/opt/jarvis-rover/models/tts/zh_CN-model.onnx
-ROVER_TTS_CONFIG=/opt/jarvis-rover/models/tts/zh_CN-model.onnx.json
+ROVER_TTS_MODEL_DIR=/opt/jarvis-rover/models/tts/pocket-tts
+ROVER_TTS_CHECKPOINT=/opt/jarvis-rover/models/tts/pocket-tts/model.safetensors
+ROVER_TTS_VOICE_STATE=/opt/jarvis-rover/models/tts/pocket-tts/voices/jarvis.safetensors
+ROVER_TTS_DEVICE=cpu
+ROVER_TTS_PLAYBACK_SAMPLE_RATE=24000
 ROVER_VOICE_CAPTURE_DEVICE=jarvis_mic
 ROVER_VOICE_PLAYBACK_DEVICE=jarvis_speaker
 ROVER_VOICE_RECORD_MAX_SECONDS=15
@@ -417,7 +426,7 @@ rejected
 unavailable
 ```
 
-普通问答的 action 必须是 `null`。响应不包含 TTS 音频；宿主机服务使用 `reply_text` 调 Piper。
+普通问答的 action 必须是 `null`。响应不包含 TTS 音频；宿主机服务使用 `reply_text` 调 Pocket TTS。
 
 错误对象：
 
@@ -464,7 +473,7 @@ GET /api/v1/voice/status
 
 ### 12.1 本机认证
 
-由于 runtime 绑定 LAN `0.0.0.0:8000`，voice endpoint 不能只依赖网络来源。必须同时满足：
+由于 runtime 绑定 LAN `0.0.0.0:8001`，voice endpoint 不能只依赖网络来源。必须同时满足：
 
 1. TCP peer 为 loopback `127.0.0.1`；
 2. 携带独立 `ROVER_VOICE_GATEWAY_TOKEN`；
@@ -547,12 +556,12 @@ GPT API key
 | USB 声卡不存在 | ASR 可继续，但 TTS 标记 unavailable/error |
 | wake word 模型缺失 | 服务不进入监听，显示模型路径错误 |
 | ASR 模型缺失 | 唤醒后返回本地 ASR unavailable |
-| 空转录/低置信度 | 本地 Piper 提示重说，不调用 GPT |
+| 空转录/低置信度 | 本地 Pocket TTS 提示重说，不调用 GPT |
 | GPT endpoint 超时/断网 | 本地播报云端不可用，不执行 action |
 | GPT 返回非法 JSON/action | 丢弃决策，返回 `invalid_decision`，不执行 |
 | mapping 返回 409/503 | 播报真实拒绝/不可用原因 |
 | mapping 请求结果未知 | 不重复提交，报告待确认并等待真实状态 |
-| Piper 模型缺失 | 文本响应仍可返回，状态为 `tts_error` |
+| Pocket TTS checkpoint/voice state 缺失 | 文本响应仍可返回，状态为 `tts_error` |
 | TTS 被打断 | 停止当前播放，进入新一轮捕获 |
 | runtime 重启 | 清除 pending action；voice service 重连 |
 | voice service 重启 | mapping/safety 继续，服务回到唤醒监听 |
@@ -588,7 +597,8 @@ GPT API key
 - openWakeWord 命中/未命中/重复冷却；
 - VAD 起止、空转录、低置信度和最长录音；
 - assistant client 成功、断线、超时和非法响应；
-- Piper 合成失败、播放错误、播放打断；
+- Pocket TTS checkpoint/voice state 加载、合成失败、播放错误、播放打断；
+- Pocket TTS 输出采样率、受控重采样和普通话发音验收；
 - 连续短会话 8 秒窗口；
 - 有界缓冲和单条 TTS 队列；
 - 不写原始音频；
@@ -615,18 +625,19 @@ GPT API key
 1. 用 `arecord -l`/等价只读检查确认 USB capture 设备和稳定名称。
 2. 用 `aplay -l`/等价只读检查确认 USB playback 设备和稳定名称。
 3. 手工执行采样检查，确认 16 kHz mono PCM16 可持续获得帧。
-4. 手工执行 Piper 本地测试文本，确认 USB 声卡播放。
-5. 确认 wake word、ASR、Piper 模型文件路径、权限、许可证和 hash。
-6. 启动 voice service，确认状态为 `WAKE_LISTENING`，不调用 mapping。
-7. 说“你好贾维斯”，验证唤醒后本地 ASR；原始音频不得离开主机。
-8. 在明确授权并已轮换 API key 后执行一次 GPT 问答，确认回复由本地 Piper 播放。
-9. 说“开始建图”，确认第一次只返回确认提示；说“确认”后确认调用现有 mapping backend，并以真实状态播报。
-10. 逐项验证暂停、恢复、保存、停止的确认、状态冲突和错误反馈。
-11. 说移动、路径、云台相关指令，确认被拒绝且 `/cmd_vel` 没有新增发布者或非零输出。
-12. 断开网络，确认 wake word、ASR 和本地 TTS 仍能运行，GPT 明确报告不可用。
-13. 停止/重启 `rover-voice.service`，确认 `rover-runtime`、mapping、safety 和 systemd 拓扑不受影响。
-14. 打开控制台，确认语音状态来自真实 backend，不显示 mock 数据。
-15. 检查日志和文件系统，确认没有 key、原始音频或完整 prompt/response。
+4. 手工执行 Pocket TTS 本地测试文本，确认 USB 声卡播放。
+5. 确认 wake word、ASR、Pocket TTS checkpoint、voice state 文件路径、权限、许可证和 hash，并记录固定版本的语言支持。
+6. 用目标普通话测试集验收 Pocket TTS 的发音、可懂度、延迟和 CPU/内存占用；未通过则保持 `tts_error`/`unavailable`。
+7. 启动 voice service，确认状态为 `WAKE_LISTENING`，不调用 mapping。
+8. 说“贾维斯”，验证唤醒后本地 ASR；原始音频不得离开主机。
+9. 在明确授权并已轮换 API key 后执行一次 GPT 问答，确认回复由本地 Pocket TTS 播放。
+10. 说“开始建图”，确认第一次只返回确认提示；说“确认”后确认调用现有 mapping backend，并以真实状态播报。
+11. 逐项验证暂停、恢复、保存、停止的确认、状态冲突和错误反馈。
+12. 说移动、路径、云台相关指令，确认被拒绝且 `/cmd_vel` 没有新增发布者或非零输出。
+13. 断开网络，确认 wake word、ASR 和本地 TTS 仍能运行，GPT 明确报告不可用。
+14. 停止/重启 `rover-voice.service`，确认 `rover-runtime`、mapping、safety 和 systemd 拓扑不受影响。
+15. 打开控制台，确认语音状态来自真实 backend，不显示 mock 数据。
+16. 检查日志和文件系统，确认没有 key、原始音频或完整 prompt/response。
 
 未经人工明确授权，不自动向 GPT 发送验收请求，以避免费用和隐私风险。
 
@@ -638,10 +649,10 @@ GPT API key
 - 宿主机 voice service 的 adapter/state tests 通过；
 - 真实 USB 麦克风和声卡能够通过人工设备验收；
 - 缺少设备/模型/网络时显示真实错误，不伪造在线；
-- “你好贾维斯”由离线 openWakeWord 检测；
+- “贾维斯”由离线 openWakeWord 检测；
 - ASR 和 VAD 完全本地运行；
 - GPT 只收到转录文本和最小真实状态上下文；
-- TTS 由本地 Piper 完成并从 USB 声卡播放；
+- TTS 由本地 Pocket TTS 完成并从 USB 声卡播放；固定 checkpoint/voice state 的目标语言发音验收通过；
 - 普通问答工作；
 - 建图操作严格经过确认、白名单、状态机和 backend；
 - 移动、路径、云台和任意 ROS 命令无法通过语音执行；

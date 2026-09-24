@@ -1,41 +1,73 @@
-from datetime import datetime, timezone
-from uuid import uuid4
+import asyncio
+from fastapi import APIRouter, HTTPException, Request
 
-from fastapi import APIRouter
-
-from app.models.map import Coordinate2D
+from app.models.mapping import MappingCommandResult, SessionRequest
 from app.models.mission import AiCommandRequest, MissionMode, MissionState, NavigateRequest
-from app.models.task import Task, TaskStatus, TaskType
-from app.state import MISSION_STATE, TASK_STATE
+from app.state import MISSION_STATE
 
 router = APIRouter(prefix="/missions", tags=["missions"])
 
 
 @router.post("/navigate", response_model=MissionState)
 def navigate_to_zone(request: NavigateRequest) -> MissionState:
-    MISSION_STATE.mode = MissionMode.AUTONOMY
-    MISSION_STATE.selected_zone_id = request.zone_id
-    MISSION_STATE.objective = f"导航至 {request.zone_id}"
-    MISSION_STATE.status_line = "导航目标已下发"
-
-    now = datetime.now(timezone.utc)
-    TASK_STATE.append(
-        Task(
-            task_id=f"task-{uuid4().hex[:8]}",
-            type=TaskType.NAVIGATE,
-            status=TaskStatus.PENDING,
-            target=Coordinate2D(x=0.0, y=0.0),
-            description=f"Navigate to zone {request.zone_id}",
-            created_at=now,
-            updated_at=now,
-        )
+    raise HTTPException(
+        status_code=503,
+        detail="Nav2 path execution is unavailable; use /api/v1/navigation/plan for a collision-checked preview",
     )
-    return MISSION_STATE
 
 
 @router.post("/ai-command", response_model=MissionState)
 def submit_ai_command(request: AiCommandRequest) -> MissionState:
-    MISSION_STATE.mode = MissionMode.AUTONOMY
-    MISSION_STATE.objective = request.prompt
-    MISSION_STATE.status_line = "AI 指令已接收，等待任务编排"
-    return MISSION_STATE
+    raise HTTPException(status_code=503, detail="任务执行器未连接；请使用助手对话接口进行安全的自然语言交互")
+
+
+def _runtime(request: Request):
+    runtime = getattr(request.app.state, "ros_runtime", None)
+    if runtime is None:
+        raise HTTPException(status_code=503, detail="ROS runtime is unavailable")
+    return runtime
+
+
+@router.get("/exploration/status", response_model=MissionState)
+def exploration_status(request: Request) -> MissionState:
+    runtime = _runtime(request)
+    if not hasattr(runtime, "mission_state"):
+        return MISSION_STATE
+    return runtime.mission_state()
+
+
+@router.post("/exploration/start", response_model=MappingCommandResult)
+async def start_exploration(request: Request, payload: SessionRequest) -> MappingCommandResult:
+    runtime = _runtime(request)
+    if not hasattr(runtime, "start_exploration"):
+        raise HTTPException(status_code=503, detail="autonomous exploration runtime is unavailable")
+    zones = getattr(request.app.state, "zone_store", None)
+    zone_list = zones.list() if zones is not None else []
+    result = await asyncio.to_thread(runtime.start_exploration, payload.session_id, zone_list)
+    if not result.accepted:
+        raise HTTPException(status_code=409, detail=result.message)
+    return result
+
+
+@router.post("/exploration/pause", response_model=MappingCommandResult)
+async def pause_exploration(request: Request) -> MappingCommandResult:
+    result = await asyncio.to_thread(_runtime(request).pause_mapping)
+    if not result.accepted:
+        raise HTTPException(status_code=409, detail=result.message)
+    return result
+
+
+@router.post("/exploration/resume", response_model=MappingCommandResult)
+async def resume_exploration(request: Request) -> MappingCommandResult:
+    result = await asyncio.to_thread(_runtime(request).resume_mapping)
+    if not result.accepted:
+        raise HTTPException(status_code=409, detail=result.message)
+    return result
+
+
+@router.post("/exploration/stop", response_model=MappingCommandResult)
+async def stop_exploration(request: Request) -> MappingCommandResult:
+    result = await asyncio.to_thread(_runtime(request).stop_mapping)
+    if not result.accepted:
+        raise HTTPException(status_code=409, detail=result.message)
+    return result

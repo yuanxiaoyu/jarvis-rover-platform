@@ -1,0 +1,247 @@
+import asyncio
+import json
+
+import httpx
+from pydantic import SecretStr
+
+from app.services.assistant_provider import OpenAICompatibleAssistantProvider
+
+
+def test_responses_output_text_message_is_normalized_to_assistant_decision():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/responses"
+        payload = json.loads(request.content)
+        assert payload["model"] == "gpt-5.6-sol"
+        assert payload["max_output_tokens"] == 512
+        return httpx.Response(
+            200,
+            json={
+                "output": [
+                    {"type": "reasoning", "content": []},
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": '{"message":"测试成功"}'}],
+                    },
+                ]
+            },
+        )
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1",
+            SecretStr("test-key"),
+            model="gpt-5.6-sol",
+            wire_api="responses",
+            transport=client,
+        )
+        decision = await provider.decide("请回复测试成功", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "测试成功"
+
+
+def test_responses_plain_output_text_is_usable_as_reply():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"output_text": "普通文本回复"})
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1",
+            SecretStr("test-key"),
+            model="gpt-5.6-sol",
+            wire_api="responses",
+            transport=client,
+        )
+        decision = await provider.decide("请回复", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "普通文本回复"
+
+
+def test_responses_action_only_payload_gets_safe_text_fallback():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"output_text": '{"action":null}'})
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1",
+            SecretStr("test-key"),
+            model="gpt-5.6-sol",
+            wire_api="responses",
+            transport=client,
+        )
+        decision = await provider.decide("请回复", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "好的。"
+
+
+def test_chat_completion_answer_alias_is_used_as_reply():
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        assert payload["max_tokens"] == 256
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": '{"action":null,"answer":"这是一个有趣回答"}'}}]},
+        )
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1", SecretStr("test-key"), model="gpt-5.6-sol", max_output_tokens=256, transport=client,
+        )
+        decision = await provider.decide("闲聊", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "这是一个有趣回答"
+
+
+def test_chat_completion_retries_truncated_json_once():
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        content = '{"reply_text":"截断' if calls == 1 else '{"reply_text":"重试成功","action":null}'
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1", SecretStr("test-key"), transport=client,
+        )
+        decision = await provider.decide("请讲一个笑话", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "重试成功"
+    assert calls == 2
+
+
+def test_fun_prompt_retries_generic_acknowledgement():
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        payload = json.loads(request.content)
+        if calls == 2:
+            assert any(message.get("role") == "system" and "完整的笑话" in message.get("content", "") for message in payload["messages"])
+            content = '{"reply_text":"重试后给出笑话","action":null}'
+        else:
+            content = '{"reply_text":"好的。","action":null}'
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1", SecretStr("test-key"), transport=client,
+        )
+        decision = await provider.decide("请讲一个冷笑话", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "重试后给出笑话"
+    assert calls == 2
+
+
+def test_system_prompt_explicitly_allows_open_ended_fun_conversation():
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        system = payload["messages"][0]["content"]
+        assert "闲聊" in system
+        assert "趣味" in system
+        assert "普通对话必须使用 action=null" in system
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"reply_text":"当然可以聊天","action":null}'}}]})
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1", SecretStr("test-key"), transport=client,
+        )
+        decision = await provider.decide("陪我聊天", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "当然可以聊天"
+
+
+def test_chat_completion_response_alias_is_used_as_reply():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": '{"action":null,"response":"这是开放式回答"}'}}]},
+        )
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1", SecretStr("test-key"), transport=client,
+        )
+        decision = await provider.decide("继续聊", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "这是开放式回答"
+
+
+def test_responses_completed_without_text_gets_safe_text_fallback():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "completed", "output": [{"type": "reasoning", "content": []}]})
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1",
+            SecretStr("test-key"),
+            model="gpt-5.6-sol",
+            wire_api="responses",
+            transport=client,
+        )
+        decision = await provider.decide("请回复", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert asyncio.run(run()) == "好的。"
+
+
+def test_capability_explanation_may_mention_restricted_capabilities():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "output_text": '{"reply_text":"我可以查看状态，也能执行建图，但不能控制移动和路径。","action":null}'
+            },
+        )
+
+    async def run() -> str:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatibleAssistantProvider(
+            "https://gmn.chuangzuoli.com/v1",
+            SecretStr("test-key"),
+            model="gpt-5.6-sol",
+            wire_api="responses",
+            transport=client,
+        )
+        decision = await provider.decide("你告诉我你能做什么", {}, [])
+        await provider.close()
+        await client.aclose()
+        return decision.reply_text
+
+    assert "不能控制移动和路径" in asyncio.run(run())

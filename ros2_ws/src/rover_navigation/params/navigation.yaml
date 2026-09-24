@@ -1,8 +1,15 @@
 /**:
   ros__parameters:
-    cmd_vel_topic: /cmd_vel
-    goal_topic: /goal_pose
+    map_topic: /navigation/map
+    map_frame: map
+    base_frame: base_footprint
+    navigate_action: /navigate_to_pose
+    safety_ready_topic: /rover_safety/ready
+    map_timeout_s: 5.0
+    imu_topic: /imu
+    imu_timeout_s: 0.5
+    startup_timeout_s: 45.0
+    goal_timeout_s: 30.0
+    max_failed_frontiers: 40
     use_keepout: true
     use_virtual_walls: true
-    nav2_map_yaml: /workspace/data/maps/current.yaml
-    nav2_params_yaml: /workspace/data/nav2/dwb_nav_params.yaml

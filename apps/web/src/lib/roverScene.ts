@@ -83,17 +83,19 @@ export class RoverScene {
     this.disposeWorld()
   }
 
-  setWorld(world: WorldModel): void {
+  setWorld(world: WorldModel, fitCamera = true): void {
     this.currentWorld = world
     this.disposeWorld()
     this.buildFloor(world)
+    this.buildOccupancy(world)
     this.buildZones(world)
     this.buildVirtualWalls(world.virtualWalls)
-    this.fitCamera(world)
+    if (fitCamera) this.fitCamera(world)
   }
 
   setRuntime(runtime: RuntimeState): void {
     this.selectedZoneId = runtime.selectedZoneId
+    this.robot.visible = runtime.poseAvailable ?? true
     this.robot.position.set(runtime.robotPose.x, 0.38, -runtime.robotPose.y)
     this.robot.rotation.y = -runtime.robotPose.yawRad
     this.updatePath(runtime.path.waypoints)
@@ -153,6 +155,42 @@ export class RoverScene {
     const grid = new THREE.GridHelper(Math.max(width, depth), Math.round(Math.max(width, depth) * 2), '#5fd7c4', '#244349')
     grid.position.set((minX + maxX) / 2, 0.01, -(minY + maxY) / 2)
     this.worldGroup.add(grid)
+  }
+
+  private buildOccupancy(world: WorldModel): void {
+    const occupancy = world.occupancy
+    if (!occupancy?.data || occupancy.data.length !== occupancy.width * occupancy.height) return
+    const occupiedCells: Array<[number, number]> = []
+    const step = Math.max(1, Math.ceil(Math.sqrt(occupancy.data.length / 12000)))
+    for (let row = 0; row < occupancy.height; row += step) {
+      for (let column = 0; column < occupancy.width; column += step) {
+        if (occupancy.data[row * occupancy.width + column] >= 65) occupiedCells.push([column, row])
+      }
+    }
+    if (!occupiedCells.length) return
+    const resolution = occupancy.resolution * step
+    const height = Math.max(0.25, resolution * 4)
+    const yaw = occupancy.originYaw ?? 0
+    const cosine = Math.cos(yaw)
+    const sine = Math.sin(yaw)
+    const geometry = new THREE.BoxGeometry(resolution, height, resolution)
+    const material = new THREE.MeshStandardMaterial({ color: '#9fb6b1', roughness: 0.92 })
+    const meshes = new THREE.InstancedMesh(geometry, material, occupiedCells.length)
+    const transform = new THREE.Object3D()
+    transform.rotation.y = yaw
+    occupiedCells.forEach(([column, row], index) => {
+      const localX = (column + step / 2) * occupancy.resolution
+      const localY = (row + step / 2) * occupancy.resolution
+      transform.position.set(
+        occupancy.origin[0] + cosine * localX - sine * localY,
+        height / 2,
+        -(occupancy.origin[1] + sine * localX + cosine * localY),
+      )
+      transform.updateMatrix()
+      meshes.setMatrixAt(index, transform.matrix)
+    })
+    meshes.instanceMatrix.needsUpdate = true
+    this.worldGroup.add(meshes)
   }
 
   private buildZones(world: WorldModel): void {

@@ -1,0 +1,17 @@
+# Managed-By: jarvis-rover-runtime
+[Unit]
+Description=Jarvis Rover Docker Compose runtime
+Requires=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/jarvis-rover-platform
+ExecStart=/usr/bin/docker compose --project-directory /home/jarvis-rover-platform --env-file /home/jarvis-rover-platform/.env up -d --no-build rover-runtime
+ExecStop=/usr/bin/docker compose --project-directory /home/jarvis-rover-platform --env-file /home/jarvis-rover-platform/.env stop --timeout 30 rover-runtime
+TimeoutStartSec=120
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target

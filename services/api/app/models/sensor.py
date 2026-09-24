@@ -12,32 +12,34 @@ class SensorType(str, Enum):
 
 
 class BatteryReading(BaseModel):
-    percent: float = Field(ge=0.0, le=100.0)
-    voltage_v: float = Field(ge=0.0)
-    charging: bool = False
+    percent: float | None = Field(default=None, ge=0.0, le=100.0)
+    voltage_v: float | None = Field(default=None, ge=0.0)
+    charging: bool | None = None
 
 
 class TemperatureReading(BaseModel):
-    board_c: float
-    motor_c: float
+    board_c: float | None = None
+    motor_c: float | None = None
 
 
 class ImuReading(BaseModel):
-    yaw_rad: float
-    pitch_rad: float
-    roll_rad: float
+    yaw_rad: float | None = None
+    pitch_rad: float | None = None
+    roll_rad: float | None = None
 
 
 class LidarReading(BaseModel):
     source: str = "MS200_TOF"
-    points_2d: int = Field(ge=0)
-    map_quality: float = Field(ge=0.0, le=1.0)
+    points_2d: int | None = Field(default=None, ge=0)
+    map_quality: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class SensorSnapshot(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    battery: BatteryReading
-    temperature: TemperatureReading
-    imu: ImuReading
-    lidar: LidarReading
+    available: bool = False
+    error: str | None = None
+    battery: BatteryReading = Field(default_factory=BatteryReading)
+    temperature: TemperatureReading = Field(default_factory=TemperatureReading)
+    imu: ImuReading = Field(default_factory=ImuReading)
+    lidar: LidarReading = Field(default_factory=LidarReading)
 

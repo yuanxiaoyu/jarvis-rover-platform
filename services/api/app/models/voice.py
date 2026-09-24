@@ -15,11 +15,13 @@ class VoiceAck(BaseModel):
     accepted: bool
     message: str
     intent: str
-    adapter: str = "mock"
+    adapter: str = "host_gateway_passive"
 
 
 class VoiceSessionState(BaseModel):
+    """Legacy snapshot shape; it reports passive/unavailable status only."""
+
     listening: bool = False
     wake_word: str = "贾维斯"
-    adapter: str = "mock"
-    transcript: str = "语音待命中"
+    adapter: str = "host_gateway_passive"
+    transcript: str = "语音服务状态见 /api/v1/voice/status"

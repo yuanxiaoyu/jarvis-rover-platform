@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Protocol
 
 from app.models.mapping import (
@@ -28,6 +29,81 @@ class MappingBackend(Protocol):
     async def load(self, request: PoseRequest) -> MappingCommandResult: ...
 
     async def close(self) -> None: ...
+
+
+
+
+class UnavailableMappingBackend:
+    """Fail-closed backend used when no real ROS mapping service is connected."""
+
+    _message = "真实 mapping backend 不可用"
+
+    async def status(self) -> MappingStatus:
+        return MappingStatus(
+            state=MappingState.ERROR_RECOVERABLE,
+            ready=False,
+            motion_allowed=False,
+            last_error=self._message,
+        )
+
+    async def start(self, session_id: str) -> MappingCommandResult:
+        return self._rejected()
+
+    async def pause(self) -> MappingCommandResult:
+        return self._rejected()
+
+    async def resume(self) -> MappingCommandResult:
+        return self._rejected()
+
+    async def stop(self) -> MappingCommandResult:
+        return self._rejected()
+
+    async def save(self, map_name: str) -> MappingCommandResult:
+        return self._rejected()
+
+    async def load(self, request: PoseRequest) -> MappingCommandResult:
+        return self._rejected()
+
+    async def close(self) -> None:
+        return None
+
+    def _rejected(self) -> MappingCommandResult:
+        return MappingCommandResult(
+            accepted=False,
+            state=MappingState.ERROR_RECOVERABLE,
+            message=self._message,
+        )
+
+
+class RosRuntimeMappingBackend:
+    """Async facade over the process and sensor state owned by RosRuntimeStore."""
+
+    def __init__(self, runtime: object) -> None:
+        self._runtime = runtime
+
+    async def status(self) -> MappingStatus:
+        return self._runtime.mapping_status()
+
+    async def start(self, session_id: str) -> MappingCommandResult:
+        return await asyncio.to_thread(self._runtime.start_mapping, session_id)
+
+    async def pause(self) -> MappingCommandResult:
+        return await asyncio.to_thread(self._runtime.pause_mapping)
+
+    async def resume(self) -> MappingCommandResult:
+        return await asyncio.to_thread(self._runtime.resume_mapping)
+
+    async def stop(self) -> MappingCommandResult:
+        return await asyncio.to_thread(self._runtime.stop_mapping)
+
+    async def save(self, map_name: str) -> MappingCommandResult:
+        return await asyncio.to_thread(self._runtime.save_mapping, map_name)
+
+    async def load(self, request: PoseRequest) -> MappingCommandResult:
+        return await asyncio.to_thread(self._runtime.load_mapping, request)
+
+    async def close(self) -> None:
+        return None
 
 
 class InMemoryMappingBackend:

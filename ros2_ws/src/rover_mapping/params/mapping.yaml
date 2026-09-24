@@ -1,16 +1,8 @@
 /**:
   ros__parameters:
     scan_topic: /scan
-    odom_raw_topic: /odom_raw
-    imu_topic: /imu
     map_topic: /map
+    map_metadata_topic: /map_metadata
     session_dir: /workspace/data/maps
-    base_frame: base_footprint
-    laser_frame: laser_frame
-    odom_frame: odom
-    map_frame: map
-    sensor_timeout_seconds: 0.75
-    min_free_bytes: 104857600
-    status_publish_hz: 2.0
-    checkpoint_on_pause: true
-    slam_service_prefix: /slam_toolbox
+    mesh_strategy: extruded_occupancy
+    save_serialized_slam: true

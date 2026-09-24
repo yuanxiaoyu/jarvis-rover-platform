@@ -23,6 +23,15 @@ export interface VirtualWall {
   enabled: boolean
 }
 
+export interface OccupancyLayer {
+  width: number
+  height: number
+  resolution: number
+  origin: Vec2
+  originYaw?: number
+  data: ArrayLike<number> | null
+}
+
 export interface RobotPose {
   x: number
   y: number
@@ -72,11 +81,50 @@ export interface TelemetryState {
   motorCurrentA: number
 }
 
+/** Compatibility shape retained for the existing system snapshot contract. */
 export interface VoiceState {
   listening: boolean
   wakeWordArmed: boolean
   transcript: string
   confidence: number
+}
+
+export type VoiceLifecycleState =
+  | 'disabled'
+  | 'wake_listening'
+  | 'capturing'
+  | 'processing_asr'
+  | 'processing_assistant'
+  | 'speaking'
+  | 'audio_unavailable'
+  | 'asr_error'
+  | 'assistant_unavailable'
+  | 'tts_error'
+
+export type VoiceErrorCode =
+  | 'assistant_unavailable'
+  | 'command_rejected'
+  | 'invalid_decision'
+  | 'voice_unauthorized'
+  | 'audio_unavailable'
+  | 'asr_error'
+  | 'tts_error'
+
+export interface VoiceError {
+  code: VoiceErrorCode
+  message: string
+  recoverable: boolean
+}
+
+export interface VoiceStatus {
+  schemaVersion: 1
+  state: VoiceLifecycleState
+  enabled: boolean
+  sessionId: string | null
+  turnId: string | null
+  lastError: VoiceError | null
+  componentLatencyMs: Record<string, number | null>
+  receivedAt: string
 }
 
 export interface TaskItem {
@@ -99,10 +147,12 @@ export interface WorldModel {
   bounds: MapBounds
   zones: MapZone[]
   virtualWalls: VirtualWall[]
+  occupancy?: OccupancyLayer | null
 }
 
 export interface RuntimeState {
   robotPose: RobotPose
+  poseAvailable?: boolean
   path: PathState
   lidar: LidarScan
   camera: CameraPanelState
@@ -155,4 +205,57 @@ export interface RoverSocketClient {
     event: K,
     callback: (payload: SocketEventMap[K]) => void,
   ): () => void
+}
+
+const VOICE_STATES: readonly VoiceLifecycleState[] = [
+  'disabled', 'wake_listening', 'capturing', 'processing_asr', 'processing_assistant',
+  'speaking', 'audio_unavailable', 'asr_error', 'assistant_unavailable', 'tts_error',
+]
+const ERROR_CODES: readonly VoiceErrorCode[] = [
+  'assistant_unavailable', 'command_rejected', 'invalid_decision', 'voice_unauthorized',
+  'audio_unavailable', 'asr_error', 'tts_error',
+]
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseError(value: unknown): VoiceError | null {
+  if (value === null) return null
+  if (!isRecord(value) || typeof value.code !== 'string' || !ERROR_CODES.includes(value.code as VoiceErrorCode)) {
+    throw new Error('invalid voice error')
+  }
+  if (typeof value.message !== 'string' || value.message.length === 0 || value.message.length > 500) {
+    throw new Error('invalid voice error message')
+  }
+  if (typeof value.recoverable !== 'boolean') throw new Error('invalid voice error recoverability')
+  return { code: value.code as VoiceErrorCode, message: value.message, recoverable: value.recoverable }
+}
+
+export function parseVoiceStatus(value: unknown): VoiceStatus {
+  if (!isRecord(value) || value.schema_version !== 1 || typeof value.state !== 'string' || !VOICE_STATES.includes(value.state as VoiceLifecycleState)) {
+    throw new Error('invalid voice status schema')
+  }
+  if (typeof value.enabled !== 'boolean') throw new Error('invalid voice enabled state')
+  if (value.session_id !== null && typeof value.session_id !== 'string') throw new Error('invalid voice session id')
+  if (value.turn_id !== null && typeof value.turn_id !== 'string') throw new Error('invalid voice turn id')
+  if (typeof value.received_at !== 'string' || Number.isNaN(Date.parse(value.received_at))) throw new Error('invalid voice timestamp')
+  if (!isRecord(value.component_latency_ms)) throw new Error('invalid voice latency')
+  const componentLatencyMs: Record<string, number | null> = {}
+  for (const [name, latency] of Object.entries(value.component_latency_ms)) {
+    if (latency !== null && (typeof latency !== 'number' || !Number.isFinite(latency) || latency < 0)) {
+      throw new Error(`invalid latency for ${name}`)
+    }
+    componentLatencyMs[name] = latency as number | null
+  }
+  return {
+    schemaVersion: 1,
+    state: value.state as VoiceLifecycleState,
+    enabled: value.enabled,
+    sessionId: value.session_id as string | null,
+    turnId: value.turn_id as string | null,
+    lastError: parseError(value.last_error),
+    componentLatencyMs,
+    receivedAt: value.received_at,
+  }
 }
